@@ -1,0 +1,167 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+enum EntryStatus {
+  NOT_STARTED @map("not_started")
+  IN_PROGRESS @map("in_progress")
+  COMPLETED   @map("completed")
+}
+
+enum ThemePreference {
+  LIGHT  @map("light")
+  DARK   @map("dark")
+  SYSTEM @map("system")
+}
+
+model User {
+  id                     String             @id @default(cuid())
+  email                  String             @unique
+  passwordHash           String
+  displayName            String?
+  timezone               String             @default("America/New_York")
+  themePreference        ThemePreference    @default(SYSTEM)
+  avatarOriginalFilename String?
+  avatarStoredFilename   String?
+  avatarRelativePath     String?
+  avatarMimeType         String?
+  avatarExtension        String?
+  avatarByteSize         Int?
+  createdAt              DateTime           @default(now())
+  updatedAt              DateTime           @updatedAt
+  dailyEntries           DailyEntry[]
+  imageAttachments       ImageAttachment[]
+  tags                   Tag[]
+  weeklyReflections      WeeklyReflection[]
+}
+
+model DailyEntry {
+  id              String            @id @default(cuid())
+  userId          String
+  entryDate       DateTime          @db.Date
+  status          EntryStatus       @default(NOT_STARTED)
+  moodValue       String?
+  moodEmoji       String?
+  moodLabel       String?
+  gratitude1      String?
+  gratitude2      String?
+  gratitude3      String?
+  todayGreat      String?
+  affirmation     String?
+  dailyCapture    String?           @db.LongText
+  eveningGood1    String?
+  eveningGood2    String?
+  eveningGood3    String?
+  improveTomorrow String?
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  imageAttachments ImageAttachment[]
+  relaxItems      RelaxItem[]
+  tags            DailyEntryTag[]
+  user            User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, entryDate])
+  @@index([userId, entryDate])
+}
+
+model RelaxItem {
+  id           String     @id @default(cuid())
+  dailyEntryId String
+  sortOrder    Int        @default(0)
+  text         String
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  dailyEntry   DailyEntry @relation(fields: [dailyEntryId], references: [id], onDelete: Cascade)
+
+  @@index([dailyEntryId, sortOrder])
+}
+
+model Tag {
+  id         String          @id @default(cuid())
+  userId     String
+  name       String
+  slug       String
+  color      String?
+  createdAt  DateTime        @default(now())
+  updatedAt  DateTime        @updatedAt
+  dailyEntries DailyEntryTag[]
+  user       User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, slug])
+  @@index([userId, slug])
+}
+
+model DailyEntryTag {
+  dailyEntryId String
+  tagId        String
+  isManual     Boolean    @default(false)
+  createdAt    DateTime   @default(now())
+  dailyEntry   DailyEntry @relation(fields: [dailyEntryId], references: [id], onDelete: Cascade)
+  tag          Tag        @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([dailyEntryId, tagId])
+  @@index([tagId])
+}
+
+model ImageAttachment {
+  id               String     @id @default(cuid())
+  userId           String
+  dailyEntryId     String
+  originalFilename String
+  storedFilename   String
+  relativePath     String
+  mimeType         String
+  extension        String
+  byteSize         Int
+  width            Int?
+  height           Int?
+  caption          String?
+  sortOrder        Int        @default(0)
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
+  dailyEntry       DailyEntry @relation(fields: [dailyEntryId], references: [id], onDelete: Cascade)
+  user             User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([dailyEntryId, sortOrder])
+}
+
+model WeeklyReflection {
+  id                String                 @id @default(cuid())
+  userId            String
+  isoYear           Int
+  isoWeek           Int
+  overallMoodValue  String?
+  overallMoodEmoji  String?
+  overallMoodLabel  String?
+  energySummary     String?                @db.LongText
+  wins              String?                @db.LongText
+  hardMoments       String?                @db.LongText
+  feltOff           String?                @db.LongText
+  nextWeekIntention String?                @db.LongText
+  createdAt         DateTime               @default(now())
+  updatedAt         DateTime               @updatedAt
+  lifeAreaRatings   WeeklyLifeAreaRating[]
+  user              User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, isoYear, isoWeek])
+  @@index([userId, isoYear, isoWeek])
+}
+
+model WeeklyLifeAreaRating {
+  id                 String           @id @default(cuid())
+  weeklyReflectionId String
+  areaKey            String
+  rating             Int
+  note               String?
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+  weeklyReflection   WeeklyReflection @relation(fields: [weeklyReflectionId], references: [id], onDelete: Cascade)
+
+  @@unique([weeklyReflectionId, areaKey])
+  @@index([weeklyReflectionId])
+}

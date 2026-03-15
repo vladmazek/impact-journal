@@ -1,0 +1,61 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runner
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      APP_URL: ${APP_URL:-https://impact.vlad.net}
+      DATABASE_URL: ${DATABASE_URL:-mysql://journal:${MARIADB_PASSWORD:-change-me}@db:3306/${MARIADB_DATABASE:-journal}}
+      AUTH_COOKIE_SECRET: ${AUTH_COOKIE_SECRET}
+      MEDIA_ROOT: /data/journal/media
+      MAX_IMAGE_UPLOAD_MB: ${MAX_IMAGE_UPLOAD_MB:-15}
+      NEXT_TELEMETRY_DISABLED: 1
+    restart: unless-stopped
+    volumes:
+      - ${HOST_STORAGE_ROOT:-/srv/impact-journal/data}/media:/data/journal/media
+
+  caddy:
+    image: caddy:2.9-alpine
+    depends_on:
+      app:
+        condition: service_started
+    environment:
+      APP_DOMAIN: ${APP_DOMAIN:-impact.vlad.net}
+    ports:
+      - "80:80"
+      - "443:443"
+    restart: unless-stopped
+    volumes:
+      - ./docker/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+
+  db:
+    image: mariadb:11.4
+    environment:
+      MARIADB_DATABASE: ${MARIADB_DATABASE:-journal}
+      MARIADB_USER: ${MARIADB_USER:-journal}
+      MARIADB_PASSWORD: ${MARIADB_PASSWORD:-change-me}
+      MARIADB_ROOT_PASSWORD: ${MARIADB_ROOT_PASSWORD:-change-me-root}
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "mariadb-admin ping -h 127.0.0.1 -u${MARIADB_USER:-journal} -p${MARIADB_PASSWORD:-change-me} --silent",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 15s
+    restart: unless-stopped
+    volumes:
+      - ${HOST_STORAGE_ROOT:-/srv/impact-journal/data}/db:/var/lib/mysql
+
+volumes:
+  caddy_config:
+  caddy_data:

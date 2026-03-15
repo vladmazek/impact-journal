@@ -1,0 +1,2 @@
+ALTER TABLE `DailyEntryTag`
+  ADD COLUMN `isManual` BOOLEAN NOT NULL DEFAULT false;

@@ -1,0 +1,76 @@
+services:
+  db-test:
+    image: mariadb:11.4
+    profiles: ["test"]
+    environment:
+      MARIADB_DATABASE: journal_test
+      MARIADB_USER: journal
+      MARIADB_PASSWORD: journal_password
+      MARIADB_ROOT_PASSWORD: root_password
+    volumes:
+      - db_test_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mariadb-admin ping -h 127.0.0.1 -ujournal -pjournal_password --silent"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+
+  app-test:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: dev
+    profiles: ["test"]
+    depends_on:
+      db-test:
+        condition: service_healthy
+    environment:
+      NODE_ENV: test
+      APP_URL: http://app-test:3000
+      DATABASE_URL: mysql://journal:journal_password@db-test:3306/journal_test
+      AUTH_COOKIE_SECRET: local-test-only-secret-change-before-production
+      MEDIA_ROOT: /data/journal/media
+      MAX_IMAGE_UPLOAD_MB: 15
+      NEXT_TELEMETRY_DISABLED: 1
+    volumes:
+      - .:/app
+      - app_test_node_modules:/app/node_modules
+      - app_test_next:/app/.next
+      - app_test_media:/data/journal/media
+    command: ["sh", "./docker/app/test-entrypoint.sh"]
+
+  e2e:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: dev
+    profiles: ["test"]
+    depends_on:
+      app-test:
+        condition: service_started
+      db-test:
+        condition: service_healthy
+    environment:
+      NODE_ENV: test
+      APP_URL: http://app-test:3000
+      E2E_BASE_URL: http://app-test:3000
+      DATABASE_URL: mysql://journal:journal_password@db-test:3306/journal_test
+      AUTH_COOKIE_SECRET: local-test-only-secret-change-before-production
+      MEDIA_ROOT: /data/journal/media
+      MAX_IMAGE_UPLOAD_MB: 15
+      NEXT_TELEMETRY_DISABLED: 1
+      PLAYWRIGHT_BROWSERS_PATH: /ms-playwright
+    volumes:
+      - .:/app
+      - app_test_node_modules:/app/node_modules
+      - app_test_media:/data/journal/media
+      - playwright_browsers:/ms-playwright
+    command: ["sh", "./docker/app/e2e-entrypoint.sh"]
+
+volumes:
+  db_test_data:
+  app_test_node_modules:
+  app_test_next:
+  app_test_media:
+  playwright_browsers:
