@@ -23,6 +23,8 @@ FROM base AS prod-deps
 
 COPY package.json pnpm-lock.yaml ./
 RUN pnpm install --prod --frozen-lockfile
+COPY prisma ./prisma
+RUN pnpm prisma generate
 
 FROM deps AS builder
 

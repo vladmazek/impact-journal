@@ -2,8 +2,14 @@ import { notFound } from "next/navigation";
 
 import { JournalEntryPage } from "@/components/journal/journal-entry-page";
 import { requireUserSession } from "@/lib/auth/session";
-import { isValidDateSlug, resolveTodayDateSlug } from "@/lib/date";
+import {
+  isValidDateSlug,
+  resolveDailyPromptSection,
+  resolveTodayDateSlug,
+} from "@/lib/date";
+import { loadCalendarNavigationMonthForUser } from "@/lib/journal/calendar-navigation";
 import { loadDailyEntryForUser } from "@/lib/journal/daily-entry";
+import { pickRandomMotivationalQuote } from "@/lib/motivational-quotes";
 import { prisma } from "@/lib/prisma";
 
 type EntryPageProps = {
@@ -26,17 +32,25 @@ export default async function EntryPage({ params }: EntryPageProps) {
     }),
   ]);
 
-  const todayDate = resolveTodayDateSlug(
-    new Date(),
-    user?.timezone ?? "America/New_York",
+  const timezone = user?.timezone ?? "America/New_York";
+  const now = new Date();
+  const todayDate = resolveTodayDateSlug(now, timezone);
+  const preferredPromptSection = resolveDailyPromptSection(now, timezone);
+  const motivationalQuote = pickRandomMotivationalQuote();
+  const calendarNavigation = await loadCalendarNavigationMonthForUser(
+    session.userId,
+    params.date,
+    todayDate,
   );
 
   return (
     <JournalEntryPage
+      calendarNavigation={calendarNavigation}
       entry={entry}
-      key={`${entry.entryDate}:${entry.updatedAt ?? "blank"}`}
-      ownerName={session.displayName}
+      motivationalQuote={motivationalQuote}
+      preferredPromptSection={preferredPromptSection}
       todayDate={todayDate}
+      userTimeZone={timezone}
     />
   );
 }

@@ -3,7 +3,9 @@ import { describe, expect, it } from "vitest";
 import {
   getDateSlugsForIsoWeek,
   getIsoWeekPartsFromDateSlug,
+  resolveDailyPromptSection,
   resolveCurrentIsoWeek,
+  resolveHourInTimeZone,
   resolveTodayDateSlug,
   shiftIsoWeek,
 } from "@/lib/date";
@@ -25,6 +27,40 @@ describe("resolveTodayDateSlug", () => {
     expect(
       resolveTodayDateSlug(new Date("2026-03-14T23:30:00.000Z"), "Pacific/Auckland"),
     ).toBe("2026-03-15");
+  });
+});
+
+describe("resolveHourInTimeZone", () => {
+  it("stays in the morning before local noon", () => {
+    expect(
+      resolveHourInTimeZone(new Date("2026-03-15T18:30:00.000Z"), "America/Phoenix"),
+    ).toBe(11);
+  });
+
+  it("crosses into noon at the local 12 o'clock hour", () => {
+    expect(
+      resolveHourInTimeZone(new Date("2026-03-15T19:30:00.000Z"), "America/Phoenix"),
+    ).toBe(12);
+  });
+});
+
+describe("resolveDailyPromptSection", () => {
+  it("returns morning before local noon", () => {
+    expect(
+      resolveDailyPromptSection(new Date("2026-03-15T18:30:00.000Z"), "America/Phoenix"),
+    ).toBe("morning");
+  });
+
+  it("returns evening at local noon", () => {
+    expect(
+      resolveDailyPromptSection(new Date("2026-03-15T19:00:00.000Z"), "America/Phoenix"),
+    ).toBe("evening");
+  });
+
+  it("returns evening after local noon", () => {
+    expect(
+      resolveDailyPromptSection(new Date("2026-03-15T21:30:00.000Z"), "America/Phoenix"),
+    ).toBe("evening");
   });
 });
 

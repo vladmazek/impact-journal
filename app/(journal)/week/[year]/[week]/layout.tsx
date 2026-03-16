@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { notFound } from "next/navigation";
 
 import { AppTopbar } from "@/components/journal/app-topbar";
+import { JournalRuntimeProvider } from "@/components/journal/journal-runtime";
 import {
   formatIsoWeekLabel,
   isValidIsoWeekParts,
@@ -41,24 +42,27 @@ export default async function WeekLayout({ children, params }: WeekLayoutProps) 
   const nextWeek = shiftIsoWeek(isoYear, isoWeek, 1);
 
   return (
-    <div className="min-h-screen">
-      <AppTopbar
-        activeView="weekly"
-        dailyHref={`/entry/${todayDate}`}
-        navigation={{
-          currentHref: `/week/${currentWeek.isoYear}/${currentWeek.isoWeek}`,
-          isCurrentWeek:
-            currentWeek.isoYear === isoYear && currentWeek.isoWeek === isoWeek,
-          kind: "week",
-          nextHref: `/week/${nextWeek.isoYear}/${nextWeek.isoWeek}`,
-          previousHref: `/week/${previousWeek.isoYear}/${previousWeek.isoWeek}`,
-        }}
-        settingsHref="/settings"
-        subtitle={formatIsoWeekLabel(isoYear, isoWeek)}
-        user={session}
-        weekHref={`/week/${isoYear}/${isoWeek}`}
-      />
-      {children}
-    </div>
+    <JournalRuntimeProvider currentHref={`/week/${isoYear}/${isoWeek}`}>
+      <div className="min-h-screen">
+        <AppTopbar
+          activeView="weekly"
+          brandHref={`/entry/${todayDate}`}
+          dailyHref={`/entry/${todayDate}`}
+          navigation={{
+            currentHref: `/week/${currentWeek.isoYear}/${currentWeek.isoWeek}`,
+            isCurrentWeek:
+              currentWeek.isoYear === isoYear && currentWeek.isoWeek === isoWeek,
+            kind: "week",
+            nextHref: `/week/${nextWeek.isoYear}/${nextWeek.isoWeek}`,
+            previousHref: `/week/${previousWeek.isoYear}/${previousWeek.isoWeek}`,
+          }}
+          settingsHref="/settings"
+          subtitle={formatIsoWeekLabel(isoYear, isoWeek)}
+          user={session}
+          weekHref={`/week/${isoYear}/${isoWeek}`}
+        />
+        {children}
+      </div>
+    </JournalRuntimeProvider>
   );
 }

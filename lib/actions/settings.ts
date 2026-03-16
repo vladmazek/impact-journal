@@ -5,26 +5,22 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import { type SettingsActionState } from "@/lib/actions/settings-state";
-import { hashPassword, verifyPassword } from "@/lib/auth/password";
+import { hashPassword } from "@/lib/auth/password";
 import { getSessionUser, refreshUserSessionFromDatabase } from "@/lib/auth/session";
-import { isValidTimeZone } from "@/lib/date";
+import { parseLocationSelection } from "@/lib/location-search";
 import { removeStoredFile, saveUploadedImage } from "@/lib/media";
 import { prisma } from "@/lib/prisma";
 
 const profileSchema = z.object({
   displayName: z.string().trim().min(2, "Add the name you want to see in the journal."),
   email: z.string().trim().email("Use a valid email address."),
-  timezone: z
-    .string()
-    .trim()
-    .min(1, "Add a timezone like America/New_York.")
-    .refine((value) => isValidTimeZone(value), "Use a valid IANA timezone like America/New_York."),
+  locationQuery: z.string().trim().optional(),
+  locationSelection: z.string().optional(),
 });
 
 const passwordSchema = z
   .object({
     confirmPassword: z.string().min(8, "Confirm the new password."),
-    currentPassword: z.string().min(8, "Enter your current password."),
     newPassword: z.string().min(8, "Choose a password with at least 8 characters."),
   })
   .refine((value) => value.newPassword === value.confirmPassword, {
@@ -62,13 +58,33 @@ export async function updateProfileAction(
   const parsedValues = profileSchema.safeParse({
     displayName: formData.get("displayName"),
     email: formData.get("email"),
-    timezone: formData.get("timezone"),
+    locationQuery: formData.get("locationQuery"),
+    locationSelection: formData.get("locationSelection"),
   });
 
   if (!parsedValues.success) {
     return {
       error:
         parsedValues.error.issues[0]?.message ?? "Unable to update your account settings.",
+      success: null,
+    };
+  }
+
+  let selectedLocation = null;
+  const normalizedLocationQuery = parsedValues.data.locationQuery?.trim() ?? "";
+
+  try {
+    selectedLocation = parseLocationSelection(parsedValues.data.locationSelection);
+  } catch {
+    return {
+      error: "Choose a location from the suggestions so the journal can keep local time right.",
+      success: null,
+    };
+  }
+
+  if (normalizedLocationQuery.length > 0 && !selectedLocation) {
+    return {
+      error: "Choose a location from the suggestions so the journal can keep local time right.",
       success: null,
     };
   }
@@ -83,6 +99,13 @@ export async function updateProfileAction(
       avatarRelativePath: true,
       avatarStoredFilename: true,
       id: true,
+      locationCity: true,
+      locationCountry: true,
+      locationLabel: true,
+      locationLatitude: true,
+      locationLongitude: true,
+      locationRegion: true,
+      timezone: true,
     },
   });
 
@@ -113,6 +136,25 @@ export async function updateProfileAction(
       });
     }
 
+    const nextLocationCity =
+      selectedLocation?.city ??
+      (normalizedLocationQuery.length === 0 ? currentUser.locationCity : null);
+    const nextLocationCountry =
+      selectedLocation?.country ??
+      (normalizedLocationQuery.length === 0 ? currentUser.locationCountry : null);
+    const nextLocationLabel =
+      selectedLocation?.label ??
+      (normalizedLocationQuery.length === 0 ? currentUser.locationLabel : null);
+    const nextLocationLatitude =
+      selectedLocation?.latitude ??
+      (normalizedLocationQuery.length === 0 ? currentUser.locationLatitude : null);
+    const nextLocationLongitude =
+      selectedLocation?.longitude ??
+      (normalizedLocationQuery.length === 0 ? currentUser.locationLongitude : null);
+    const nextLocationRegion =
+      selectedLocation?.region ??
+      (normalizedLocationQuery.length === 0 ? currentUser.locationRegion : null);
+
     await prisma.user.update({
       where: { id: session.userId },
       data: {
@@ -124,7 +166,13 @@ export async function updateProfileAction(
         avatarStoredFilename: storedAvatar?.storedFilename ?? undefined,
         displayName: parsedValues.data.displayName.trim(),
         email: normalizeEmail(parsedValues.data.email),
-        timezone: parsedValues.data.timezone.trim(),
+        locationCity: nextLocationCity,
+        locationCountry: nextLocationCountry,
+        locationLabel: nextLocationLabel,
+        locationLatitude: nextLocationLatitude,
+        locationLongitude: nextLocationLongitude,
+        locationRegion: nextLocationRegion,
+        timezone: selectedLocation?.timezone ?? currentUser.timezone ?? "America/New_York",
       },
     });
   } catch (error) {
@@ -178,7 +226,6 @@ export async function updatePasswordAction(
 
   const parsedValues = passwordSchema.safeParse({
     confirmPassword: formData.get("confirmPassword"),
-    currentPassword: formData.get("currentPassword"),
     newPassword: formData.get("newPassword"),
   });
 
@@ -193,25 +240,13 @@ export async function updatePasswordAction(
   const user = await prisma.user.findUnique({
     where: { id: session.userId },
     select: {
-      passwordHash: true,
+      id: true,
     },
   });
 
   if (!user) {
     return {
       error: "That account could not be found anymore. Sign in again to continue.",
-      success: null,
-    };
-  }
-
-  const isValidPassword = await verifyPassword(
-    user.passwordHash,
-    parsedValues.data.currentPassword,
-  );
-
-  if (!isValidPassword) {
-    return {
-      error: "That current password did not match.",
       success: null,
     };
   }

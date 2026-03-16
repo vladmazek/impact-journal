@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, LaptopMinimal, MoonStar, Palette, SunMedium } from "lucide-react";
+import { Check, LaptopMinimal, MoonStar, SunMedium, SunMoon } from "lucide-react";
 import { startTransition, useState } from "react";
 import { useTheme } from "next-themes";
 
@@ -15,6 +15,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 const options: Array<{
   description: string;
@@ -45,11 +46,13 @@ const options: Array<{
 type ThemeToggleProps = {
   currentPreference: ThemeMode;
   persistPreference?: boolean;
+  variant?: "dropdown" | "inline";
 };
 
 export function ThemeToggle({
   currentPreference,
   persistPreference = false,
+  variant = "dropdown",
 }: ThemeToggleProps) {
   const { setTheme } = useTheme();
   const [selected, setSelected] = useState<ThemeMode>(currentPreference);
@@ -72,6 +75,44 @@ export function ThemeToggle({
     });
   };
 
+  if (variant === "inline") {
+    return (
+      <div className="space-y-3">
+        <div className="flex items-center gap-3">
+          {options.map((option) => {
+            const Icon = option.icon;
+            const isActive = selected === option.value;
+
+            return (
+              <button
+                aria-label={`Use ${option.label.toLowerCase()} theme`}
+                aria-pressed={isActive}
+                className={cn(
+                  "flex h-14 w-14 items-center justify-center rounded-full border transition",
+                  isActive
+                    ? "border-primary/30 bg-primary/10 text-primary shadow-sm"
+                    : "border-border/70 bg-background/80 text-muted-foreground hover:border-primary/20 hover:text-foreground",
+                )}
+                disabled={isPending}
+                key={option.value}
+                onClick={() => handleSelect(option.value)}
+                title={option.label}
+                type="button"
+              >
+                <Icon className="h-5 w-5" />
+              </button>
+            );
+          })}
+        </div>
+        <p className="text-xs text-muted-foreground">
+          {isPending
+            ? "Saving your preference..."
+            : `Current mode: ${activeOption.label.toLowerCase()}.`}
+        </p>
+      </div>
+    );
+  }
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -81,7 +122,7 @@ export function ThemeToggle({
           size="icon"
           variant="outline"
         >
-          <Palette className="h-4 w-4" />
+          <SunMoon className="h-4 w-4" />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-72">
@@ -118,4 +159,3 @@ export function ThemeToggle({
     </DropdownMenu>
   );
 }
-

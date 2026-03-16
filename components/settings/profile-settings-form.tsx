@@ -1,21 +1,31 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useFormState } from "react-dom";
 import { useRouter } from "next/navigation";
 
 import { initialSettingsActionState } from "@/lib/actions/settings-state";
 import { updateProfileAction } from "@/lib/actions/settings";
+import {
+  locationOptionSchema,
+  serializeLocationSelection,
+  type LocationOption,
+} from "@/lib/location-search";
 import { getMediaUrl } from "@/lib/media-url";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Button } from "@/components/ui/button";
 import { SubmitButton } from "@/components/auth/submit-button";
 
 type ProfileSettingsFormProps = {
   avatarRelativePath: string | null;
   displayName: string | null;
   email: string;
+  locationCity: string | null;
+  locationCountry: string | null;
+  locationLabel: string | null;
+  locationLatitude: number | null;
+  locationLongitude: number | null;
+  locationRegion: string | null;
   timezone: string;
 };
 
@@ -37,12 +47,46 @@ export function ProfileSettingsForm({
   avatarRelativePath,
   displayName,
   email,
+  locationCity,
+  locationCountry,
+  locationLabel,
+  locationLatitude,
+  locationLongitude,
+  locationRegion,
   timezone,
 }: ProfileSettingsFormProps) {
   const router = useRouter();
   const [state, formAction] = useFormState(updateProfileAction, initialSettingsActionState);
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
-  const [timezoneValue, setTimezoneValue] = useState(timezone);
+  const [locationQuery, setLocationQuery] = useState(locationLabel ?? "");
+  const [locationResults, setLocationResults] = useState<LocationOption[]>([]);
+  const [locationSearchError, setLocationSearchError] = useState<string | null>(null);
+  const [isSearchingLocations, setIsSearchingLocations] = useState(false);
+  const [isLocationListVisible, setIsLocationListVisible] = useState(false);
+  const [selectedLocation, setSelectedLocation] = useState<LocationOption | null>(() => {
+    if (
+      !locationCity ||
+      !locationCountry ||
+      !locationLabel ||
+      locationLatitude === null ||
+      locationLongitude === null
+    ) {
+      return null;
+    }
+
+    const parsedLocation = locationOptionSchema.safeParse({
+      city: locationCity,
+      country: locationCountry,
+      label: locationLabel,
+      latitude: locationLatitude,
+      longitude: locationLongitude,
+      region: locationRegion,
+      timezone,
+    });
+
+    return parsedLocation.success ? parsedLocation.data : null;
+  });
+  const locationRequestIdRef = useRef(0);
 
   const avatarPreviewUrl = useMemo(() => {
     if (!avatarFile) {
@@ -61,23 +105,65 @@ export function ProfileSettingsForm({
   }, [avatarPreviewUrl]);
 
   useEffect(() => {
-    const browserTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-
-    if (!timezone && browserTimeZone) {
-      setTimezoneValue(browserTimeZone);
-    }
-  }, [timezone]);
-
-  useEffect(() => {
     if (state.success) {
       router.refresh();
     }
   }, [router, state.success]);
 
+  useEffect(() => {
+    const trimmedQuery = locationQuery.trim();
+
+    if (trimmedQuery.length < 2 || trimmedQuery === selectedLocation?.label) {
+      setLocationResults([]);
+      setLocationSearchError(null);
+      setIsSearchingLocations(false);
+      return;
+    }
+
+    const currentRequestId = locationRequestIdRef.current + 1;
+    locationRequestIdRef.current = currentRequestId;
+    const timeoutId = window.setTimeout(async () => {
+      setIsSearchingLocations(true);
+
+      try {
+        const response = await fetch(`/api/location-search?q=${encodeURIComponent(trimmedQuery)}`);
+
+        if (!response.ok) {
+          throw new Error("Unable to load locations.");
+        }
+
+        const payload = await response.json();
+
+        if (locationRequestIdRef.current !== currentRequestId) {
+          return;
+        }
+
+        const parsedResults = locationOptionSchema.array().safeParse(payload.results);
+        setLocationResults(parsedResults.success ? parsedResults.data : []);
+        setLocationSearchError(null);
+      } catch {
+        if (locationRequestIdRef.current !== currentRequestId) {
+          return;
+        }
+
+        setLocationResults([]);
+        setLocationSearchError("Location suggestions are unavailable right now.");
+      } finally {
+        if (locationRequestIdRef.current === currentRequestId) {
+          setIsSearchingLocations(false);
+        }
+      }
+    }, 250);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [locationQuery, selectedLocation?.label]);
+
   return (
     <form action={formAction} className="space-y-6">
-      <div className="grid gap-5 sm:grid-cols-2">
-        <div className="space-y-2 sm:col-span-2">
+      <div className="space-y-5">
+        <div className="space-y-2">
           <Label htmlFor="settings-display-name">Name</Label>
           <Input
             defaultValue={displayName ?? ""}
@@ -100,30 +186,95 @@ export function ProfileSettingsForm({
         </div>
 
         <div className="space-y-2">
-          <div className="flex items-center justify-between gap-3">
-            <Label htmlFor="settings-timezone">Timezone</Label>
-            <Button
-              className="rounded-full"
-              onClick={() =>
-                setTimezoneValue(Intl.DateTimeFormat().resolvedOptions().timeZone)
-              }
-              type="button"
-              variant="ghost"
-            >
-              Use browser timezone
-            </Button>
-          </div>
+          <Label htmlFor="settings-location">Home location</Label>
           <Input
-            id="settings-timezone"
-            name="timezone"
-            onChange={(event) => setTimezoneValue(event.currentTarget.value)}
-            placeholder="America/New_York"
-            value={timezoneValue}
+            autoComplete="off"
+            id="settings-location"
+            onBlur={() => {
+              window.setTimeout(() => {
+                setIsLocationListVisible(false);
+              }, 120);
+            }}
+            onChange={(event) => {
+              const nextValue = event.currentTarget.value;
+              setLocationQuery(nextValue);
+              setLocationSearchError(null);
+
+              if (nextValue !== selectedLocation?.label) {
+                setSelectedLocation(null);
+              }
+            }}
+            onFocus={() => setIsLocationListVisible(true)}
+            placeholder="Search city, state, country"
+            value={locationQuery}
           />
+          <input
+            name="locationQuery"
+            type="hidden"
+            value={locationQuery}
+          />
+          <input
+            name="locationSelection"
+            type="hidden"
+            value={selectedLocation ? serializeLocationSelection(selectedLocation) : ""}
+          />
+          <p className="text-sm text-muted-foreground">
+            Search for your city so the journal can keep local time right and prepare for local
+            weather later.
+          </p>
+          <p className="text-sm text-muted-foreground">
+            Timezone:{" "}
+            <span className="font-medium text-foreground">
+              {selectedLocation?.timezone ?? timezone}
+            </span>
+          </p>
+
+          {isLocationListVisible &&
+          (isSearchingLocations || locationResults.length > 0 || locationSearchError) ? (
+            <div className="rounded-[24px] border border-border/70 bg-background/95 p-2 shadow-sm">
+              {isSearchingLocations ? (
+                <p className="px-3 py-2 text-sm text-muted-foreground">Searching places...</p>
+              ) : null}
+
+              {!isSearchingLocations && locationSearchError ? (
+                <p className="px-3 py-2 text-sm text-red-700 dark:text-red-200">
+                  {locationSearchError}
+                </p>
+              ) : null}
+
+              {!isSearchingLocations && !locationSearchError && locationResults.length === 0 ? (
+                <p className="px-3 py-2 text-sm text-muted-foreground">No matching places found.</p>
+              ) : null}
+
+              {!isSearchingLocations && !locationSearchError ? (
+                <div className="space-y-1">
+                  {locationResults.map((location) => (
+                    <button
+                      className="flex w-full flex-col items-start rounded-[18px] px-3 py-2 text-left transition hover:bg-accent/40"
+                      data-testid={`location-option-${location.label}`}
+                      key={`${location.label}-${location.latitude}-${location.longitude}`}
+                      onMouseDown={(event) => {
+                        event.preventDefault();
+                        setLocationQuery(location.label);
+                        setSelectedLocation(location);
+                        setLocationResults([]);
+                        setLocationSearchError(null);
+                        setIsLocationListVisible(false);
+                      }}
+                      type="button"
+                    >
+                      <span className="text-sm font-medium text-foreground">{location.label}</span>
+                      <span className="text-xs text-muted-foreground">{location.timezone}</span>
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+          ) : null}
         </div>
       </div>
 
-      <div className="space-y-3">
+      <div className="space-y-3 rounded-[28px] border border-border/70 bg-background/60 p-5">
         <div className="flex items-center justify-between gap-3">
           <Label htmlFor="settings-avatar">Avatar</Label>
           <span className="text-xs uppercase tracking-[0.2em] text-muted-foreground">

@@ -15,32 +15,51 @@ import { useRouter } from "next/navigation";
 
 type FlushHandler = () => Promise<boolean>;
 
+export type TopbarSaveStatus = {
+  badge: string | null;
+  body: string;
+  label: string;
+  tone: "danger" | "muted" | "primary" | "success" | "warning";
+};
+
 type JournalRuntimeContextValue = {
-  currentDate: string;
+  currentHref: string;
   isNavigating: boolean;
-  pendingDate: string | null;
+  pendingNavigationLabel: string | null;
+  navigateToHref: (
+    nextHref: string,
+    options?: {
+      pendingLabel?: string;
+    },
+  ) => Promise<boolean>;
   navigateToDate: (nextDate: string) => Promise<boolean>;
   registerFlushHandler: (handler: FlushHandler | null) => () => void;
+  setTopbarSaveStatus: (status: TopbarSaveStatus | null) => void;
+  topbarSaveStatus: TopbarSaveStatus | null;
 };
 
 const JournalRuntimeContext = createContext<JournalRuntimeContextValue | null>(null);
 
 type JournalRuntimeProviderProps = {
   children: ReactNode;
-  currentDate: string;
+  currentHref: string;
 };
 
 export function JournalRuntimeProvider({
   children,
-  currentDate,
+  currentHref,
 }: JournalRuntimeProviderProps) {
   const router = useRouter();
   const flushHandlerRef = useRef<FlushHandler | null>(null);
-  const [pendingDate, setPendingDate] = useState<string | null>(null);
+  const [pendingNavigation, setPendingNavigation] = useState<{
+    label: string | null;
+  } | null>(null);
+  const [topbarSaveStatus, setTopbarSaveStatus] = useState<TopbarSaveStatus | null>(null);
 
   useEffect(() => {
-    setPendingDate(null);
-  }, [currentDate]);
+    setPendingNavigation(null);
+    setTopbarSaveStatus(null);
+  }, [currentHref]);
 
   const registerFlushHandler = useCallback((handler: FlushHandler | null) => {
     flushHandlerRef.current = handler;
@@ -52,17 +71,24 @@ export function JournalRuntimeProvider({
     };
   }, []);
 
-  const navigateToDate = useCallback(
-    async (nextDate: string) => {
-      if (!nextDate || nextDate === currentDate) {
+  const navigateToHref = useCallback(
+    async (
+      nextHref: string,
+      options: {
+        pendingLabel?: string;
+      } = {},
+    ) => {
+      if (!nextHref || nextHref === currentHref) {
         return true;
       }
 
-      if (pendingDate) {
+      if (pendingNavigation) {
         return false;
       }
 
-      setPendingDate(nextDate);
+      setPendingNavigation({
+        label: options.pendingLabel ?? null,
+      });
 
       try {
         const canNavigate = flushHandlerRef.current
@@ -70,32 +96,51 @@ export function JournalRuntimeProvider({
           : true;
 
         if (!canNavigate) {
-          setPendingDate(null);
+          setPendingNavigation(null);
           return false;
         }
 
         startTransition(() => {
-          router.push(`/entry/${nextDate}`);
+          router.push(nextHref);
         });
 
         return true;
       } catch {
-        setPendingDate(null);
+        setPendingNavigation(null);
         return false;
       }
     },
-    [currentDate, pendingDate, router],
+    [currentHref, pendingNavigation, router],
+  );
+
+  const navigateToDate = useCallback(
+    async (nextDate: string) => {
+      return navigateToHref(`/entry/${nextDate}`, {
+        pendingLabel: nextDate,
+      });
+    },
+    [navigateToHref],
   );
 
   const value = useMemo(
     () => ({
-      currentDate,
-      isNavigating: pendingDate !== null,
+      currentHref,
+      isNavigating: pendingNavigation !== null,
+      navigateToHref,
       navigateToDate,
-      pendingDate,
+      pendingNavigationLabel: pendingNavigation?.label ?? null,
       registerFlushHandler,
+      setTopbarSaveStatus,
+      topbarSaveStatus,
     }),
-    [currentDate, navigateToDate, pendingDate, registerFlushHandler],
+    [
+      currentHref,
+      navigateToDate,
+      navigateToHref,
+      pendingNavigation,
+      registerFlushHandler,
+      topbarSaveStatus,
+    ],
   );
 
   return (
@@ -113,4 +158,8 @@ export function useJournalRuntime() {
   }
 
   return context;
+}
+
+export function useOptionalJournalRuntime() {
+  return useContext(JournalRuntimeContext);
 }

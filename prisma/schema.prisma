@@ -24,6 +24,12 @@ model User {
   email                  String             @unique
   passwordHash           String
   displayName            String?
+  locationLabel          String?
+  locationCity           String?
+  locationRegion         String?
+  locationCountry        String?
+  locationLatitude       Float?
+  locationLongitude      Float?
   timezone               String             @default("America/New_York")
   themePreference        ThemePreference    @default(SYSTEM)
   avatarOriginalFilename String?

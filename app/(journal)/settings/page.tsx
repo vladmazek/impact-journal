@@ -14,6 +14,12 @@ export default async function SettingsPage() {
       avatarRelativePath: true,
       displayName: true,
       email: true,
+      locationCity: true,
+      locationCountry: true,
+      locationLabel: true,
+      locationLatitude: true,
+      locationLongitude: true,
+      locationRegion: true,
       themePreference: true,
       timezone: true,
     },
@@ -36,8 +42,8 @@ export default async function SettingsPage() {
                 Keep the private journal grounded.
               </h1>
               <p className="max-w-2xl text-base leading-7 text-muted-foreground sm:text-lg">
-                Update the single-owner account, keep the timezone honest, and change the password
-                without turning the app into an admin dashboard.
+                Update the single-owner account, keep the home location accurate, and change the
+                password without turning the app into an admin dashboard.
               </p>
             </div>
           </div>
@@ -48,7 +54,8 @@ export default async function SettingsPage() {
             <p className="text-[11px] uppercase tracking-[0.24em] text-primary/70">Account</p>
             <CardTitle>Owner details</CardTitle>
             <CardDescription>
-              Display name, login email, timezone, and avatar for this single private workspace.
+              Display name, login email, home location, and avatar for this single private
+              workspace.
             </CardDescription>
           </CardHeader>
           <CardContent className="pt-6">
@@ -56,6 +63,12 @@ export default async function SettingsPage() {
               avatarRelativePath={user.avatarRelativePath}
               displayName={user.displayName}
               email={user.email}
+              locationCity={user.locationCity}
+              locationCountry={user.locationCountry}
+              locationLabel={user.locationLabel}
+              locationLatitude={user.locationLatitude}
+              locationLongitude={user.locationLongitude}
+              locationRegion={user.locationRegion}
               timezone={user.timezone}
             />
           </CardContent>
@@ -80,18 +93,13 @@ export default async function SettingsPage() {
           <CardHeader>
             <p className="text-[11px] uppercase tracking-[0.24em] text-primary/70">Appearance</p>
             <CardTitle>Theme</CardTitle>
-            <CardDescription>
-              Light and dark mode stay first-class. The preference persists with the owner account.
-            </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent>
             <ThemeToggle
               currentPreference={toThemeMode(user.themePreference)}
               persistPreference
+              variant="inline"
             />
-            <p className="text-sm leading-6 text-muted-foreground">
-              Choose light, dark, or system and the preference will follow the owner account.
-            </p>
           </CardContent>
         </Card>
 

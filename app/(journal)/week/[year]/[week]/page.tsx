@@ -25,7 +25,6 @@ export default async function WeekPage({ params }: WeekPageProps) {
 
   return (
     <WeeklyReflectionPage
-      key={`${reflection.isoYear}-${reflection.isoWeek}:${reflection.updatedAt ?? "blank"}`}
       reflection={reflection}
     />
   );

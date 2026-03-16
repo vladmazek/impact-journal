@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils";
 type EntrySectionProps = {
   children: ReactNode;
   className?: string;
-  description: string;
+  description?: string;
   eyebrow?: string;
   title: string;
 };
@@ -27,12 +27,13 @@ export function EntrySection({
           </p>
         ) : null}
         <CardTitle>{title}</CardTitle>
-        <CardDescription className="max-w-2xl text-sm leading-6">
-          {description}
-        </CardDescription>
+        {description ? (
+          <CardDescription className="max-w-2xl text-sm leading-6">
+            {description}
+          </CardDescription>
+        ) : null}
       </CardHeader>
       <CardContent className="pt-6">{children}</CardContent>
     </Card>
   );
 }
-

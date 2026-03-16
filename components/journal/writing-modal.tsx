@@ -13,6 +13,8 @@ type WritingModalProps = {
   eyebrow?: string;
   onChange: (value: string) => void;
   onClose: () => void;
+  onTextareaBlur?: () => void;
+  onTextareaFocus?: () => void;
   open: boolean;
   placeholder?: string;
   testId?: string;
@@ -26,6 +28,8 @@ export function WritingModal({
   eyebrow = "Daily capture",
   onChange,
   onClose,
+  onTextareaBlur,
+  onTextareaFocus,
   open,
   placeholder,
   testId = "writing-textarea",
@@ -108,6 +112,8 @@ export function WritingModal({
               className="min-h-[52vh] resize-none border-0 bg-transparent px-0 py-0 text-base leading-8 shadow-none focus-visible:ring-0"
               data-testid={testId}
               onChange={(event) => onChange(event.currentTarget.value)}
+              onBlur={onTextareaBlur}
+              onFocus={onTextareaFocus}
               placeholder={
                 placeholder ??
                 "Let the day land here. Write the parts you want to remember, untangle, or release."

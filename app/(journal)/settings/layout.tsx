@@ -24,6 +24,7 @@ export default async function SettingsLayout({ children }: SettingsLayoutProps) 
     <div className="min-h-screen">
       <AppTopbar
         activeView="settings"
+        brandHref={`/entry/${todayDate}`}
         dailyHref={`/entry/${todayDate}`}
         settingsHref="/settings"
         subtitle="Journal settings"

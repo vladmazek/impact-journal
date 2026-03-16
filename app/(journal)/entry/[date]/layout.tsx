@@ -40,10 +40,11 @@ export default async function EntryLayout({
   const viewedWeek = getIsoWeekPartsFromDateSlug(params.date);
 
   return (
-    <JournalRuntimeProvider currentDate={params.date}>
+    <JournalRuntimeProvider currentHref={`/entry/${params.date}`}>
       <div className="min-h-screen">
         <AppTopbar
           activeView="daily"
+          brandHref={`/entry/${todayDate}`}
           dailyHref={`/entry/${params.date}`}
           navigation={{
             currentDate: params.date,

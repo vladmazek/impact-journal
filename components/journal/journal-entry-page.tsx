@@ -1,17 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import {
-  BookOpenText,
   Camera,
+  ChevronDown,
   Expand,
-  Hash,
   Heart,
   ImagePlus,
   LampDesk,
-  MoonStar,
-  Sparkles,
-  Tags,
   Trash2,
 } from "lucide-react";
 
@@ -21,6 +17,7 @@ import {
   uploadEntryImagesAction,
 } from "@/lib/actions/image-attachments";
 import {
+  buildDailyEntryParsedTagSourceText,
   draftsMatch,
   inferDailyEntryStatus,
   normalizeDailyEntryDraft,
@@ -33,28 +30,39 @@ import {
 import { buildNormalizedTag, extractTagsFromText, formatTagLabel } from "@/lib/journal/tags";
 import {
   formatLongDateFromSlug,
-  formatMonthDayFromSlug,
-  formatRelativeEntryHeading,
+  resolveDailyPromptSection,
 } from "@/lib/date";
 import { getMediaUrl } from "@/lib/media-url";
+import { type CalendarNavigationMonth } from "@/lib/journal/calendar-navigation";
+import { DateNavigation } from "@/components/journal/date-navigation";
 import { EntrySection } from "@/components/journal/entry-section";
 import { ImagePreviewModal } from "@/components/journal/image-preview-modal";
 import { MoodPicker } from "@/components/journal/mood-picker";
 import { RelaxList } from "@/components/journal/relax-list";
-import { SaveIndicator } from "@/components/journal/save-indicator";
-import { useJournalRuntime } from "@/components/journal/journal-runtime";
+import {
+  type TopbarSaveStatus,
+  useJournalRuntime,
+} from "@/components/journal/journal-runtime";
 import { WritingModal } from "@/components/journal/writing-modal";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { type MotivationalQuote } from "@/lib/motivational-quotes";
+import { cn } from "@/lib/utils";
 
 type JournalEntryPageProps = {
+  calendarNavigation: CalendarNavigationMonth;
   entry: DailyEntryRecord;
-  ownerName: string | null | undefined;
+  motivationalQuote: MotivationalQuote;
+  preferredPromptSection: PromptSection;
   todayDate: string;
+  userTimeZone: string;
 };
+
+type PromptSection = "evening" | "morning";
+type PromptSectionVisibility = Record<PromptSection, boolean>;
 
 type SaveState = "error" | "idle" | "saved" | "saving";
 type TextFieldName =
@@ -76,6 +84,91 @@ type VisibleTag = {
   name: string;
   slug: string;
 };
+
+type PromptAccordionSectionProps = {
+  children: ReactNode;
+  description: string;
+  eyebrow: string;
+  isOpen: boolean;
+  onToggle: (section: PromptSection) => void;
+  section: PromptSection;
+  title: string;
+};
+
+const SAVE_GUARD_INTERVAL_MS = 60_000;
+
+function formatUpdatedAt(updatedAt: string | null) {
+  if (!updatedAt) {
+    return "Nothing saved yet.";
+  }
+
+  return new Intl.DateTimeFormat("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(new Date(updatedAt));
+}
+
+function buildDailyTopbarSaveStatus({
+  errorMessage,
+  hasUnsavedChanges,
+  saveState,
+  status,
+  updatedAt,
+}: {
+  errorMessage: string | null;
+  hasUnsavedChanges: boolean;
+  saveState: SaveState;
+  status: DailyEntryRecord["status"];
+  updatedAt: string | null;
+}): TopbarSaveStatus {
+  const badge =
+    status === "completed" ? "Completed" : status === "in_progress" ? "In progress" : "Not started";
+
+  if (saveState === "error") {
+    return {
+      badge,
+      body: errorMessage ?? "Saving hit a problem. Your draft is still here.",
+      label: "Save paused",
+      tone: "danger",
+    };
+  }
+
+  if (saveState === "saving") {
+    return {
+      badge,
+      body: "Saving your page quietly in the background.",
+      label: "Saving",
+      tone: "primary",
+    };
+  }
+
+  if (saveState === "saved") {
+    return {
+      badge,
+      body: `Saved at ${formatUpdatedAt(updatedAt)}.`,
+      label: "Saved",
+      tone: "success",
+    };
+  }
+
+  if (hasUnsavedChanges) {
+    return {
+      badge,
+      body: "Changes save when you leave the field or page. A quiet 1-minute safeguard stays on.",
+      label: "Unsaved changes",
+      tone: "warning",
+    };
+  }
+
+  return {
+    badge,
+    body: updatedAt
+      ? `Last saved at ${formatUpdatedAt(updatedAt)}.`
+      : "Changes save when you leave the field or page.",
+    label: "Idle",
+    tone: "muted",
+  };
+}
 
 function excerptFromCapture(value: string) {
   const trimmed = value.trim();
@@ -103,6 +196,29 @@ function readingTimeLabel(value: string) {
   }
 
   return `${Math.max(1, Math.round(wordCount / 180))} min read`;
+}
+
+function buildPromptSectionVisibilityForToday(
+  activeSection: PromptSection | null,
+): PromptSectionVisibility {
+  return {
+    evening: activeSection === "evening",
+    morning: activeSection === "morning",
+  };
+}
+
+function buildPromptSectionVisibility(options: {
+  isToday: boolean;
+  preferredPromptSection: PromptSection;
+}): PromptSectionVisibility {
+  if (!options.isToday) {
+    return {
+      evening: true,
+      morning: true,
+    };
+  }
+
+  return buildPromptSectionVisibilityForToday(options.preferredPromptSection);
 }
 
 function entryToDraft(entry: DailyEntryRecord): DailyEntryDraft {
@@ -209,15 +325,84 @@ function buildVisibleTags(options: {
   return Array.from(visibleTags.values()).sort(sortVisibleTags);
 }
 
+function PromptAccordionSection({
+  children,
+  description,
+  eyebrow,
+  isOpen,
+  onToggle,
+  section,
+  title,
+}: PromptAccordionSectionProps) {
+  const contentId = `${section}-prompt-content`;
+
+  return (
+    <Card
+      className="overflow-hidden border-border/60 bg-card/85"
+      data-testid={`${section}-accordion-section`}
+    >
+      <button
+        aria-controls={contentId}
+        aria-expanded={isOpen}
+        className="w-full px-6 py-6 text-left transition hover:bg-accent/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-inset sm:px-8 sm:py-8"
+        data-testid={`${section}-accordion-trigger`}
+        onClick={() => onToggle(section)}
+        type="button"
+      >
+        <div className="flex items-start justify-between gap-4">
+          <div className="min-w-0 space-y-3">
+            <p className="text-[11px] uppercase tracking-[0.24em] text-primary/70">{eyebrow}</p>
+            <div className="space-y-3">
+              <h2 className="font-serif text-2xl font-medium tracking-tight text-foreground sm:text-[2.25rem] sm:leading-tight">
+                {title}
+              </h2>
+              {isOpen ? (
+                <p className="max-w-2xl text-base leading-7 text-muted-foreground sm:text-lg">
+                  {description}
+                </p>
+              ) : null}
+            </div>
+          </div>
+          <span
+            className={cn(
+              "mt-1 inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-border/60 bg-background/80 text-muted-foreground transition",
+              isOpen ? "border-primary/30 text-primary" : "hover:border-primary/25",
+            )}
+          >
+            <ChevronDown
+              className={cn("h-5 w-5 transition-transform", isOpen ? "rotate-180" : "rotate-0")}
+            />
+          </span>
+        </div>
+      </button>
+
+      <div
+        className={cn(
+          "border-t border-border/50 p-6 pt-6 sm:p-8 sm:pt-6",
+          !isOpen && "hidden",
+        )}
+        data-testid={`${section}-accordion-content`}
+        hidden={!isOpen}
+        id={contentId}
+      >
+        {children}
+      </div>
+    </Card>
+  );
+}
+
 export function JournalEntryPage({
+  calendarNavigation,
   entry,
-  ownerName,
+  motivationalQuote,
+  preferredPromptSection,
   todayDate,
+  userTimeZone,
 }: JournalEntryPageProps) {
-  const { pendingDate, registerFlushHandler } = useJournalRuntime();
+  const { isNavigating, registerFlushHandler, setTopbarSaveStatus } = useJournalRuntime();
+  const isToday = entry.entryDate === todayDate;
 
   const [draft, setDraft] = useState<DailyEntryDraft>(() => entryToDraft(entry));
-  const [entryId, setEntryId] = useState(entry.entryId);
   const [updatedAt, setUpdatedAt] = useState(entry.updatedAt);
   const [imageAttachments, setImageAttachments] = useState(entry.imageAttachments);
   const [persistedTags, setPersistedTags] = useState(entry.tags);
@@ -227,21 +412,36 @@ export function JournalEntryPage({
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [imageErrorMessage, setImageErrorMessage] = useState<string | null>(null);
   const [tagErrorMessage, setTagErrorMessage] = useState<string | null>(null);
+  const [isTagInputVisible, setIsTagInputVisible] = useState(false);
   const [isWritingOpen, setIsWritingOpen] = useState(false);
   const [isUploadingImages, setIsUploadingImages] = useState(false);
+  const [isMoodSectionVisible, setIsMoodSectionVisible] = useState(() => !entry.moodValue);
+  const [promptSectionVisibility, setPromptSectionVisibility] =
+    useState<PromptSectionVisibility>(() =>
+      buildPromptSectionVisibility({
+        isToday,
+        preferredPromptSection,
+      }),
+    );
   const [deletingImageId, setDeletingImageId] = useState<string | null>(null);
   const [previewImage, setPreviewImage] = useState<ImageAttachmentRecord | null>(null);
+  const [activeTextField, setActiveTextField] = useState<string | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const moodSectionRef = useRef<HTMLDivElement | null>(null);
+  const lastObservedPromptSectionRef = useRef<PromptSection>(preferredPromptSection);
   const lastPersistedDraftRef = useRef(normalizeDailyEntryDraft(entryToDraft(entry)));
-  const inFlightDraftRef = useRef<DailyEntryDraft | null>(null);
   const lastFailedDraftRef = useRef<DailyEntryDraft | null>(null);
   const latestDraftRef = useRef(draft);
   const persistPromiseRef = useRef<Promise<boolean> | null>(null);
+  const requestedSaveRef = useRef<{
+    allowFailedSnapshotRetry: boolean;
+    snapshot: DailyEntryDraft;
+  } | null>(null);
   const imageTaskPromiseRef = useRef<Promise<boolean> | null>(null);
 
   const normalizedDraft = normalizeDailyEntryDraft(draft);
-  const parsedTags = extractTagsFromText(draft.dailyCapture);
+  const parsedTags = extractTagsFromText(buildDailyEntryParsedTagSourceText(normalizedDraft));
   const visibleTags = buildVisibleTags({
     manualTagSlugs: normalizedDraft.manualTagSlugs,
     parsedTags,
@@ -254,22 +454,16 @@ export function JournalEntryPage({
     tagCount: selectedTags.length,
   });
   const hasUnsavedChanges = !draftsMatch(normalizedDraft, lastPersistedDraftRef.current);
-  const relativeHeading = formatRelativeEntryHeading(entry.entryDate, todayDate);
-  const isToday = entry.entryDate === todayDate;
   const captureExcerpt = excerptFromCapture(draft.dailyCapture);
   const dateLabel = formatLongDateFromSlug(entry.entryDate);
-  const availableSuggestions = visibleTags.filter((tag) => !selectedTags.some((selectedTag) => selectedTag.slug === tag.slug));
+  const hasSelectedMood = Boolean(draft.moodValue && draft.moodEmoji && draft.moodLabel);
 
   useEffect(() => {
-    latestDraftRef.current = draft;
-  }, [draft]);
-
-  useEffect(() => {
-    if (pendingDate) {
+    if (isNavigating) {
       setIsWritingOpen(false);
       setPreviewImage(null);
     }
-  }, [pendingDate]);
+  }, [isNavigating]);
 
   useEffect(() => {
     if (!previewImage) {
@@ -280,6 +474,49 @@ export function JournalEntryPage({
       imageAttachments.find((image) => image.id === previewImage.id) ?? null;
     setPreviewImage(nextPreviewImage);
   }, [imageAttachments, previewImage]);
+
+  useEffect(() => {
+    setIsMoodSectionVisible(!entry.moodValue);
+  }, [entry.entryDate, entry.moodValue]);
+
+  useEffect(() => {
+    if (!draft.moodValue) {
+      setIsMoodSectionVisible(true);
+    }
+  }, [draft.moodValue]);
+
+  useEffect(() => {
+    lastObservedPromptSectionRef.current = preferredPromptSection;
+    setPromptSectionVisibility(
+      buildPromptSectionVisibility({
+        isToday,
+        preferredPromptSection,
+      }),
+    );
+  }, [entry.entryDate, isToday, preferredPromptSection]);
+
+  useEffect(() => {
+    if (!isToday) {
+      return;
+    }
+
+    const syncPromptSectionWithCurrentTime = () => {
+      const nextPromptSection = resolveDailyPromptSection(new Date(), userTimeZone);
+
+      if (nextPromptSection !== lastObservedPromptSectionRef.current) {
+        lastObservedPromptSectionRef.current = nextPromptSection;
+        setPromptSectionVisibility(buildPromptSectionVisibilityForToday(nextPromptSection));
+      }
+    };
+
+    syncPromptSectionWithCurrentTime();
+
+    const intervalId = window.setInterval(syncPromptSectionWithCurrentTime, 60_000);
+
+    return () => {
+      window.clearInterval(intervalId);
+    };
+  }, [isToday, userTimeZone]);
 
   useEffect(() => {
     if (
@@ -299,8 +536,31 @@ export function JournalEntryPage({
     }
   }, [hasUnsavedChanges, saveState]);
 
+  useEffect(() => {
+    setTopbarSaveStatus(
+      buildDailyTopbarSaveStatus({
+        errorMessage,
+        hasUnsavedChanges,
+        saveState,
+        status: inferredStatus,
+        updatedAt,
+      }),
+    );
+
+    return () => {
+      setTopbarSaveStatus(null);
+    };
+  }, [
+    errorMessage,
+    hasUnsavedChanges,
+    inferredStatus,
+    saveState,
+    setTopbarSaveStatus,
+    updatedAt,
+  ]);
+
   const saveNormalizedDraft = useCallback(
-    async (
+    (
       snapshot: DailyEntryDraft,
       options: {
         allowFailedSnapshotRetry?: boolean;
@@ -308,97 +568,132 @@ export function JournalEntryPage({
     ) => {
       const normalizedSnapshot = normalizeDailyEntryDraft(snapshot);
 
-      if (
-        persistPromiseRef.current &&
-        inFlightDraftRef.current &&
-        draftsMatch(inFlightDraftRef.current, normalizedSnapshot)
-      ) {
-        return persistPromiseRef.current;
+      if (draftsMatch(normalizedSnapshot, lastPersistedDraftRef.current)) {
+        return Promise.resolve(true);
       }
 
-      if (
-        !options.allowFailedSnapshotRetry &&
-        lastFailedDraftRef.current &&
-        draftsMatch(lastFailedDraftRef.current, normalizedSnapshot)
-      ) {
-        return false;
-      }
+      requestedSaveRef.current = {
+        allowFailedSnapshotRetry: options.allowFailedSnapshotRetry ?? false,
+        snapshot: normalizedSnapshot,
+      };
 
-      setSaveState("saving");
-      inFlightDraftRef.current = normalizedSnapshot;
+      const drainPendingSaves = async () => {
+        if (persistPromiseRef.current) {
+          return persistPromiseRef.current;
+        }
 
-      const persistPromise = (async () => {
-        try {
-          const result = await saveDailyEntryAction(normalizedSnapshot);
-          const savedSnapshot = {
-            ...normalizedSnapshot,
-            manualTagSlugs: result.tags.filter((tag) => tag.isManual).map((tag) => tag.slug),
-            relaxItems: result.relaxItems,
-          };
+        const persistPromise = (async () => {
+          let didAllRequestedSavesSucceed = true;
 
-          setEntryId(result.entryId);
-          setUpdatedAt(result.updatedAt);
-          setPersistedTags(result.tags);
-          setTagSuggestions(result.tagSuggestions);
-          setTagErrorMessage(null);
-          setErrorMessage(null);
-          lastPersistedDraftRef.current = savedSnapshot;
-          lastFailedDraftRef.current = null;
+          while (requestedSaveRef.current) {
+            const request = requestedSaveRef.current;
+            requestedSaveRef.current = null;
 
-          const latestNormalizedDraft = normalizeDailyEntryDraft(latestDraftRef.current);
+            if (draftsMatch(request.snapshot, lastPersistedDraftRef.current)) {
+              continue;
+            }
 
-          setDraft((currentDraft) => ({
-            ...currentDraft,
-            manualTagSlugs: savedSnapshot.manualTagSlugs,
-            relaxItems: normalizeVisibleRelaxItems(savedSnapshot.relaxItems),
-          }));
+            if (
+              !request.allowFailedSnapshotRetry &&
+              lastFailedDraftRef.current &&
+              draftsMatch(lastFailedDraftRef.current, request.snapshot)
+            ) {
+              didAllRequestedSavesSucceed = false;
+              continue;
+            }
 
-          if (draftsMatch(latestNormalizedDraft, savedSnapshot)) {
-            setSaveState("saved");
-          } else {
-            setSaveState("idle");
+            setSaveState("saving");
+
+            try {
+              const result = await saveDailyEntryAction(request.snapshot);
+              const savedSnapshot = {
+                ...request.snapshot,
+                manualTagSlugs: result.tags
+                  .filter((tag) => tag.isManual)
+                  .map((tag) => tag.slug),
+                relaxItems: result.relaxItems,
+              };
+
+              setUpdatedAt(result.updatedAt);
+              setPersistedTags(result.tags);
+              setTagSuggestions(result.tagSuggestions);
+              setTagErrorMessage(null);
+              setErrorMessage(null);
+              lastPersistedDraftRef.current = savedSnapshot;
+              lastFailedDraftRef.current = null;
+
+              const latestNormalizedDraft = normalizeDailyEntryDraft(latestDraftRef.current);
+
+              if (draftsMatch(latestNormalizedDraft, request.snapshot)) {
+                const syncedDraft = {
+                  ...latestDraftRef.current,
+                  manualTagSlugs: savedSnapshot.manualTagSlugs,
+                  relaxItems: normalizeVisibleRelaxItems(savedSnapshot.relaxItems),
+                };
+
+                latestDraftRef.current = syncedDraft;
+                setDraft(syncedDraft);
+                setSaveState(requestedSaveRef.current ? "saving" : "saved");
+              } else if (!requestedSaveRef.current) {
+                setSaveState("idle");
+              }
+            } catch (error) {
+              const message = messageFromError(
+                error,
+                "Autosave hit a problem. Please try again.",
+              );
+
+              lastFailedDraftRef.current = request.snapshot;
+              setErrorMessage(message);
+              setSaveState("error");
+              didAllRequestedSavesSucceed = false;
+            }
           }
 
-          return true;
-        } catch (error) {
-          const message = messageFromError(
-            error,
-            "Autosave hit a problem. Please try again.",
-          );
+          return didAllRequestedSavesSucceed && requestedSaveRef.current === null;
+        })();
 
-          lastFailedDraftRef.current = normalizedSnapshot;
-          setErrorMessage(message);
-          setSaveState("error");
-          return false;
-        } finally {
-          inFlightDraftRef.current = null;
+        persistPromiseRef.current = persistPromise.finally(() => {
           persistPromiseRef.current = null;
-        }
-      })();
+          if (requestedSaveRef.current) {
+            void drainPendingSaves();
+          }
+        });
 
-      persistPromiseRef.current = persistPromise;
-      return persistPromise;
+        return persistPromiseRef.current;
+      };
+
+      return drainPendingSaves();
     },
     [],
   );
 
   useEffect(() => {
-    if (!hasUnsavedChanges || persistPromiseRef.current) {
+    if (!activeTextField) {
       return;
     }
 
-    if (lastFailedDraftRef.current && draftsMatch(normalizedDraft, lastFailedDraftRef.current)) {
-      return;
-    }
+    const intervalId = window.setInterval(() => {
+      const latestNormalizedDraft = normalizeDailyEntryDraft(latestDraftRef.current);
 
-    const timeoutId = window.setTimeout(() => {
-      void saveNormalizedDraft(normalizedDraft);
-    }, 900);
+      if (draftsMatch(latestNormalizedDraft, lastPersistedDraftRef.current)) {
+        return;
+      }
+
+      if (
+        lastFailedDraftRef.current &&
+        draftsMatch(latestNormalizedDraft, lastFailedDraftRef.current)
+      ) {
+        return;
+      }
+
+      void saveNormalizedDraft(latestNormalizedDraft);
+    }, SAVE_GUARD_INTERVAL_MS);
 
     return () => {
-      window.clearTimeout(timeoutId);
+      window.clearInterval(intervalId);
     };
-  }, [hasUnsavedChanges, normalizedDraft, saveNormalizedDraft]);
+  }, [activeTextField, saveNormalizedDraft]);
 
   useEffect(() => {
     if (saveState !== "saved") {
@@ -427,6 +722,7 @@ export function JournalEntryPage({
 
   const flushPendingChanges = useCallback(async () => {
     setIsWritingOpen(false);
+    setActiveTextField(null);
     setPreviewImage(null);
 
     if (imageTaskPromiseRef.current) {
@@ -435,10 +731,6 @@ export function JournalEntryPage({
       if (!imageTaskSucceeded) {
         return false;
       }
-    }
-
-    if (persistPromiseRef.current) {
-      return persistPromiseRef.current;
     }
 
     const latestNormalizedDraft = normalizeDailyEntryDraft(latestDraftRef.current);
@@ -454,7 +746,7 @@ export function JournalEntryPage({
       return saveNormalizedDraft(latestNormalizedDraft);
     }
 
-    return true;
+    return persistPromiseRef.current ?? true;
   }, [saveNormalizedDraft]);
 
   useEffect(() => registerFlushHandler(flushPendingChanges), [
@@ -462,16 +754,35 @@ export function JournalEntryPage({
     registerFlushHandler,
   ]);
 
-  const setFieldValue = useCallback((field: TextFieldName, value: string) => {
-    setDraft((currentDraft) => ({
-      ...currentDraft,
-      [field]: value,
-    }));
+  const updateDraft = useCallback((updater: (currentDraft: DailyEntryDraft) => DailyEntryDraft) => {
+    const nextDraft = updater(latestDraftRef.current);
+    latestDraftRef.current = nextDraft;
+    setDraft(nextDraft);
+    return nextDraft;
   }, []);
+
+  const commitLatestDraft = useCallback(() => {
+    return saveNormalizedDraft(latestDraftRef.current);
+  }, [saveNormalizedDraft]);
+
+  const setFieldValue = useCallback(
+    (field: TextFieldName, value: string) => {
+      updateDraft((currentDraft) => ({
+        ...currentDraft,
+        [field]: value,
+      }));
+    },
+    [updateDraft],
+  );
+
+  const commitFieldChange = useCallback(() => {
+    setActiveTextField(null);
+    void commitLatestDraft();
+  }, [commitLatestDraft]);
 
   const toggleManualTag = useCallback((slug: string) => {
     setTagErrorMessage(null);
-    setDraft((currentDraft) => {
+    const nextDraft = updateDraft((currentDraft) => {
       const hasTag = currentDraft.manualTagSlugs.includes(slug);
 
       return {
@@ -481,7 +792,8 @@ export function JournalEntryPage({
           : [...currentDraft.manualTagSlugs, slug],
       };
     });
-  }, []);
+    void saveNormalizedDraft(nextDraft);
+  }, [saveNormalizedDraft, updateDraft]);
 
   const createManualTag = useCallback(() => {
     const normalizedTag = buildNormalizedTag(tagInput);
@@ -491,19 +803,25 @@ export function JournalEntryPage({
       return;
     }
 
-    setDraft((currentDraft) => {
-      if (currentDraft.manualTagSlugs.includes(normalizedTag.slug)) {
-        return currentDraft;
-      }
+    const currentDraft = latestDraftRef.current;
 
-      return {
-        ...currentDraft,
-        manualTagSlugs: [...currentDraft.manualTagSlugs, normalizedTag.slug],
-      };
-    });
+    if (currentDraft.manualTagSlugs.includes(normalizedTag.slug)) {
+      setTagInput("");
+      setTagErrorMessage(null);
+      setIsTagInputVisible(false);
+      return;
+    }
+
+    const nextDraft = updateDraft((draftToUpdate) => ({
+      ...draftToUpdate,
+      manualTagSlugs: [...draftToUpdate.manualTagSlugs, normalizedTag.slug],
+    }));
+
     setTagInput("");
     setTagErrorMessage(null);
-  }, [tagInput]);
+    setIsTagInputVisible(false);
+    void saveNormalizedDraft(nextDraft);
+  }, [saveNormalizedDraft, tagInput, updateDraft]);
 
   const uploadImages = useCallback(
     async (files: File[]) => {
@@ -524,7 +842,6 @@ export function JournalEntryPage({
           });
 
           const result = await uploadEntryImagesAction(formData);
-          setEntryId(result.entryId);
           setUpdatedAt(result.updatedAt);
           setImageAttachments(result.imageAttachments);
           return true;
@@ -553,7 +870,6 @@ export function JournalEntryPage({
             entryDate: entry.entryDate,
           });
 
-          setEntryId(result.entryId);
           setUpdatedAt(result.updatedAt);
           setImageAttachments(result.imageAttachments);
 
@@ -577,6 +893,37 @@ export function JournalEntryPage({
     [entry.entryDate, previewImage?.id, runImageTask],
   );
 
+  const openMoodSection = useCallback(() => {
+    setIsMoodSectionVisible(true);
+
+    window.requestAnimationFrame(() => {
+      moodSectionRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    });
+  }, []);
+
+  const togglePromptSection = useCallback(
+    (section: PromptSection) => {
+      setPromptSectionVisibility((currentVisibility) => {
+        if (!isToday) {
+          return {
+            ...currentVisibility,
+            [section]: !currentVisibility[section],
+          };
+        }
+
+        if (currentVisibility[section]) {
+          return buildPromptSectionVisibilityForToday(null);
+        }
+
+        return buildPromptSectionVisibilityForToday(section);
+      });
+    },
+    [isToday],
+  );
+
   return (
     <>
       <main
@@ -585,96 +932,51 @@ export function JournalEntryPage({
       >
         <div className="space-y-6">
           <Card className="overflow-hidden bg-[radial-gradient(circle_at_top_left,rgba(59,130,246,0.18),transparent_34%),linear-gradient(135deg,rgba(255,255,255,0.92),rgba(255,255,255,0.72))] p-6 dark:bg-[radial-gradient(circle_at_top_left,rgba(59,130,246,0.18),transparent_32%),linear-gradient(135deg,rgba(8,15,30,0.95),rgba(12,20,37,0.88))] sm:p-8">
-            <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_220px]">
-              <div className="space-y-4">
-                <p className="text-[11px] uppercase tracking-[0.28em] text-primary/75">
-                  {isToday ? "Today's page" : "Daily page"}
-                </p>
-                <div className="space-y-3">
-                  <h1 className="font-serif text-4xl leading-tight text-foreground sm:text-5xl">
-                    {relativeHeading}
-                  </h1>
-                  <p className="max-w-2xl text-base leading-7 text-muted-foreground sm:text-lg">
-                    {ownerName
-                      ? `${ownerName}, keep this page light enough to use and honest enough to matter.`
-                      : "Keep this page light enough to use and honest enough to matter."}
-                  </p>
-                </div>
-                <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
-                  <span className="inline-flex items-center gap-2 rounded-full border border-border/70 bg-background/80 px-3 py-1.5">
-                    <Sparkles className="h-4 w-4 text-primary" />
-                    {dateLabel}
-                  </span>
-                  <span className="inline-flex items-center gap-2 rounded-full border border-border/70 bg-background/80 px-3 py-1.5">
-                    <BookOpenText className="h-4 w-4 text-primary" />
-                    {entryId ? "Saved journal entry" : "Draft not created until first save"}
-                  </span>
-                  <span className="inline-flex items-center gap-2 rounded-full border border-border/70 bg-background/80 px-3 py-1.5">
-                    <Camera className="h-4 w-4 text-primary" />
-                    {imageAttachments.length === 1
-                      ? "1 image attached"
-                      : `${imageAttachments.length} images attached`}
-                  </span>
-                  <span className="inline-flex items-center gap-2 rounded-full border border-border/70 bg-background/80 px-3 py-1.5">
-                    <Tags className="h-4 w-4 text-primary" />
-                    {selectedTags.length === 1 ? "1 tag in play" : `${selectedTags.length} tags in play`}
-                  </span>
-                </div>
-                {selectedTags.length > 0 ? (
-                  <div className="flex flex-wrap gap-2">
-                    {selectedTags.map((tag) => (
-                      <span
-                        className={
-                          tag.isManual
-                            ? "inline-flex items-center rounded-full border border-primary/25 bg-primary/10 px-3 py-1 text-xs font-medium text-primary"
-                            : "inline-flex items-center gap-1 rounded-full border border-dashed border-border/80 bg-background/80 px-3 py-1 text-xs font-medium text-muted-foreground"
-                        }
-                        key={tag.slug}
-                      >
-                        {!tag.isManual ? <Hash className="h-3 w-3" /> : null}
-                        {formatTagLabel(tag.slug)}
-                      </span>
-                    ))}
-                  </div>
-                ) : null}
-              </div>
-
-              <div className="rounded-[28px] border border-border/60 bg-background/70 p-5">
-                <p className="text-[11px] uppercase tracking-[0.24em] text-primary/70">
-                  Daily rhythm
-                </p>
-                <ul className="mt-4 space-y-3 text-sm leading-6 text-muted-foreground">
-                  <li>Start with the mood that feels true enough.</li>
-                  <li>Use the morning prompts for traction, not perfection.</li>
-                  <li>Open the writing space when the day needs more room.</li>
-                  <li>Add photos when the page needs texture, not just words.</li>
-                  <li>Let #tags stay lightweight enough to tap in or type in passing.</li>
-                </ul>
-              </div>
-            </div>
+            <figure className="max-w-4xl space-y-5 sm:space-y-6">
+              <p
+                className="text-[11px] uppercase tracking-[0.28em] text-primary/75"
+                data-testid="entry-hero-author"
+              >
+                {motivationalQuote.author}
+              </p>
+              <blockquote
+                className="font-serif text-2xl font-medium tracking-tight text-foreground dark:text-white sm:text-[2.25rem] sm:leading-tight"
+                data-testid="entry-hero-quote"
+              >
+                &ldquo;{motivationalQuote.quote}&rdquo;
+              </blockquote>
+            </figure>
           </Card>
 
-          <EntrySection
-            description="Choose the emotional headline first. One tap is enough, and tapping the same mood again clears it."
-            eyebrow="Mood"
-            title="How does today feel?"
-          >
-            <MoodPicker
-              onChange={(nextMood) =>
-                setDraft((currentDraft) => ({
-                  ...currentDraft,
-                  moodEmoji: nextMood.emoji,
-                  moodLabel: nextMood.label,
-                  moodValue: nextMood.value,
-                }))
-              }
-              value={draft.moodValue}
-            />
-          </EntrySection>
+          <div data-testid="entry-mood-section" id="entry-mood-section" ref={moodSectionRef}>
+            {isMoodSectionVisible || !hasSelectedMood ? (
+              <div data-testid="entry-mood-picker-section">
+                <EntrySection title="Mood">
+                  <MoodPicker
+                    onChange={(nextMood) => {
+                      const nextDraft = updateDraft((currentDraft) => ({
+                        ...currentDraft,
+                        moodEmoji: nextMood.emoji,
+                        moodLabel: nextMood.label,
+                        moodValue: nextMood.value,
+                      }));
 
-          <EntrySection
+                      setIsMoodSectionVisible(!nextMood.value);
+                      void saveNormalizedDraft(nextDraft);
+                    }}
+                    value={draft.moodValue}
+                  />
+                </EntrySection>
+              </div>
+            ) : null}
+          </div>
+
+          <PromptAccordionSection
             description="A few small lines to orient the day before it gets noisy."
             eyebrow="Morning"
+            isOpen={promptSectionVisibility.morning}
+            onToggle={togglePromptSection}
+            section="morning"
             title="Open the page gently"
           >
             <div className="grid gap-5 lg:grid-cols-2">
@@ -683,7 +985,9 @@ export function JournalEntryPage({
                   <Label htmlFor="gratitude1">Gratitude one</Label>
                   <Input
                     id="gratitude1"
+                    onBlur={commitFieldChange}
                     onChange={(event) => setFieldValue("gratitude1", event.currentTarget.value)}
+                    onFocus={() => setActiveTextField("gratitude1")}
                     placeholder="Something quietly good"
                     value={draft.gratitude1}
                   />
@@ -692,7 +996,9 @@ export function JournalEntryPage({
                   <Label htmlFor="gratitude2">Gratitude two</Label>
                   <Input
                     id="gratitude2"
+                    onBlur={commitFieldChange}
                     onChange={(event) => setFieldValue("gratitude2", event.currentTarget.value)}
+                    onFocus={() => setActiveTextField("gratitude2")}
                     placeholder="Another thing worth noticing"
                     value={draft.gratitude2}
                   />
@@ -701,7 +1007,9 @@ export function JournalEntryPage({
                   <Label htmlFor="gratitude3">Gratitude three</Label>
                   <Input
                     id="gratitude3"
+                    onBlur={commitFieldChange}
                     onChange={(event) => setFieldValue("gratitude3", event.currentTarget.value)}
+                    onFocus={() => setActiveTextField("gratitude3")}
                     placeholder="A person, place, or moment"
                     value={draft.gratitude3}
                   />
@@ -713,7 +1021,9 @@ export function JournalEntryPage({
                   <Label htmlFor="todayGreat">What would make today great?</Label>
                   <Textarea
                     id="todayGreat"
+                    onBlur={commitFieldChange}
                     onChange={(event) => setFieldValue("todayGreat", event.currentTarget.value)}
+                    onFocus={() => setActiveTextField("todayGreat")}
                     placeholder="A simple win, a feeling, or a small intention."
                     value={draft.todayGreat}
                   />
@@ -722,14 +1032,16 @@ export function JournalEntryPage({
                   <Label htmlFor="affirmation">Daily affirmation</Label>
                   <Textarea
                     id="affirmation"
+                    onBlur={commitFieldChange}
                     onChange={(event) => setFieldValue("affirmation", event.currentTarget.value)}
+                    onFocus={() => setActiveTextField("affirmation")}
                     placeholder="A line you want to keep close today."
                     value={draft.affirmation}
                   />
                 </div>
               </div>
             </div>
-          </EntrySection>
+          </PromptAccordionSection>
 
           <EntrySection
             description="Keep a short list of things that help you unwind later, without turning it into a task manager."
@@ -739,11 +1051,20 @@ export function JournalEntryPage({
             <RelaxList
               items={draft.relaxItems}
               onChange={(items) =>
-                setDraft((currentDraft) => ({
+                updateDraft((currentDraft) => ({
                   ...currentDraft,
                   relaxItems: items,
                 }))
               }
+              onCommit={(items) => {
+                setActiveTextField(null);
+                const nextDraft = updateDraft((currentDraft) => ({
+                  ...currentDraft,
+                  relaxItems: items,
+                }));
+                void saveNormalizedDraft(nextDraft);
+              }}
+              onFocusItem={(index) => setActiveTextField(`relaxItems.${index}`)}
             />
           </EntrySection>
 
@@ -779,9 +1100,12 @@ export function JournalEntryPage({
             </div>
           </EntrySection>
 
-          <EntrySection
+          <PromptAccordionSection
             description="End with what went well and one calm note for tomorrow."
             eyebrow="Evening"
+            isOpen={promptSectionVisibility.evening}
+            onToggle={togglePromptSection}
+            section="evening"
             title="Close the day"
           >
             <div className="grid gap-5 lg:grid-cols-2">
@@ -790,7 +1114,9 @@ export function JournalEntryPage({
                   <Label htmlFor="eveningGood1">Good thing one</Label>
                   <Input
                     id="eveningGood1"
+                    onBlur={commitFieldChange}
                     onChange={(event) => setFieldValue("eveningGood1", event.currentTarget.value)}
+                    onFocus={() => setActiveTextField("eveningGood1")}
                     placeholder="A win, kindness, or bright spot"
                     value={draft.eveningGood1}
                   />
@@ -799,7 +1125,9 @@ export function JournalEntryPage({
                   <Label htmlFor="eveningGood2">Good thing two</Label>
                   <Input
                     id="eveningGood2"
+                    onBlur={commitFieldChange}
                     onChange={(event) => setFieldValue("eveningGood2", event.currentTarget.value)}
+                    onFocus={() => setActiveTextField("eveningGood2")}
                     placeholder="Another thing worth holding onto"
                     value={draft.eveningGood2}
                   />
@@ -808,7 +1136,9 @@ export function JournalEntryPage({
                   <Label htmlFor="eveningGood3">Good thing three</Label>
                   <Input
                     id="eveningGood3"
+                    onBlur={commitFieldChange}
                     onChange={(event) => setFieldValue("eveningGood3", event.currentTarget.value)}
+                    onFocus={() => setActiveTextField("eveningGood3")}
                     placeholder="A quiet detail that mattered"
                     value={draft.eveningGood3}
                   />
@@ -819,53 +1149,91 @@ export function JournalEntryPage({
                 <Label htmlFor="improveTomorrow">How could today have gone better?</Label>
                 <Textarea
                   id="improveTomorrow"
+                  onBlur={commitFieldChange}
                   onChange={(event) =>
                     setFieldValue("improveTomorrow", event.currentTarget.value)
                   }
+                  onFocus={() => setActiveTextField("improveTomorrow")}
                   placeholder="Keep it kind and specific. What would help tomorrow feel steadier?"
                   value={draft.improveTomorrow}
                 />
               </div>
             </div>
-          </EntrySection>
+          </PromptAccordionSection>
 
-          <EntrySection
-            description="Photos live on mounted disk storage. iPhone HEIC uploads are accepted when this Docker environment can process them reliably, and otherwise the app will ask for JPEG, PNG, or WEBP instead of failing mysteriously."
-            eyebrow="Images"
-            title="Attach what the day looked like"
-          >
-            <div className="space-y-4">
-              <input
-                accept="image/*,.heic,.heif"
-                className="hidden"
-                data-testid="image-upload-input"
-                multiple
-                onChange={(event) => {
-                  const files = Array.from(event.currentTarget.files ?? []);
-                  event.currentTarget.value = "";
-                  void uploadImages(files);
-                }}
-                ref={fileInputRef}
-                type="file"
-              />
+        </div>
 
-              <div className="flex flex-wrap items-center gap-3">
-                <Button
-                  className="rounded-full"
-                  data-testid="image-upload-button"
-                  disabled={isUploadingImages || deletingImageId !== null}
-                  onClick={() => fileInputRef.current?.click()}
-                  type="button"
-                >
-                  <ImagePlus className="h-4 w-4" />
-                  {isUploadingImages ? "Uploading..." : "Add images"}
-                </Button>
-                <p className="text-sm text-muted-foreground">
-                  Stored under mounted media at `{entry.entryDate}` with original filenames kept in
-                  metadata.
-                </p>
+        <aside className="space-y-4 lg:sticky lg:top-24 lg:self-start">
+          <DateNavigation
+            calendar={calendarNavigation}
+            currentDate={entry.entryDate}
+            todayDate={todayDate}
+          />
+
+          <Card className="space-y-4 p-5">
+            {hasSelectedMood ? (
+              <button
+                aria-controls="entry-mood-section"
+                aria-expanded={isMoodSectionVisible}
+                className="flex w-full items-center gap-3 rounded-[20px] text-left transition hover:bg-accent/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2"
+                data-testid="mood-anchor-button"
+                onClick={openMoodSection}
+                type="button"
+              >
+                <span className="flex h-11 w-11 items-center justify-center rounded-full border border-primary/20 bg-primary/10 text-2xl">
+                  <span aria-hidden="true" role="img">
+                    {draft.moodEmoji}
+                  </span>
+                </span>
+                <div>
+                  <p className="text-sm font-medium text-foreground">Mood anchor</p>
+                  <p className="text-sm text-muted-foreground">{draft.moodLabel}</p>
+                </div>
+              </button>
+            ) : (
+              <div className="flex items-center gap-3">
+                <span className="flex h-11 w-11 items-center justify-center rounded-full border border-primary/20 bg-primary/10 text-primary">
+                  <Heart className="h-5 w-5" />
+                </span>
+                <div>
+                  <p className="text-sm font-medium text-foreground">Mood anchor</p>
+                  <p className="text-sm text-muted-foreground">No mood chosen yet</p>
+                </div>
               </div>
+            )}
+          </Card>
 
+          <div className="rounded-[24px] border border-border/70 bg-background/70 p-4">
+            <input
+              accept="image/*,.heic,.heif"
+              className="hidden"
+              data-testid="image-upload-input"
+              multiple
+              onChange={(event) => {
+                const files = Array.from(event.currentTarget.files ?? []);
+                event.currentTarget.value = "";
+                void uploadImages(files);
+              }}
+              ref={fileInputRef}
+              type="file"
+            />
+
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-[11px] uppercase tracking-[0.2em] text-primary/70">Images</p>
+              <Button
+                className="h-auto rounded-full px-3 py-1.5 text-xs font-medium"
+                data-testid="image-upload-button"
+                disabled={isUploadingImages || deletingImageId !== null}
+                onClick={() => fileInputRef.current?.click()}
+                type="button"
+                variant="ghost"
+              >
+                <ImagePlus className="h-3.5 w-3.5" />
+                {isUploadingImages ? "Uploading..." : "+ image"}
+              </Button>
+            </div>
+
+            <div className="mt-3 space-y-3">
               {imageErrorMessage ? (
                 <div
                   className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-200"
@@ -876,18 +1244,12 @@ export function JournalEntryPage({
               ) : null}
 
               {imageAttachments.length === 0 ? (
-                <div className="rounded-[28px] border border-dashed border-border/70 bg-background/70 px-6 py-10 text-center">
-                  <Camera className="mx-auto h-10 w-10 text-primary/70" />
-                  <p className="mt-4 font-medium text-foreground">No images attached yet</p>
-                  <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                    Add a few photos when the page needs a little more texture than words alone.
-                  </p>
+                <div className="rounded-[24px] border border-dashed border-border/70 bg-background/70 px-5 py-8 text-center">
+                  <Camera className="mx-auto h-8 w-8 text-primary/70" />
+                  <p className="mt-3 text-sm font-medium text-foreground">No images yet</p>
                 </div>
               ) : (
-                <div
-                  className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3"
-                  data-testid="image-gallery"
-                >
+                <div className="grid gap-4" data-testid="image-gallery">
                   {imageAttachments.map((attachment) => {
                     const isDeleting = deletingImageId === attachment.id;
 
@@ -962,198 +1324,95 @@ export function JournalEntryPage({
                 </div>
               )}
             </div>
-          </EntrySection>
+          </div>
 
-          <EntrySection
-            description="Tap a remembered tag, add a new one, or let #hashtags from the writing space stay in sync automatically."
-            eyebrow="Tags"
-            title="Keep recall light"
-          >
-            <div className="space-y-4">
-              <form
-                className="flex flex-col gap-3 sm:flex-row"
-                onSubmit={(event) => {
-                  event.preventDefault();
-                  createManualTag();
+          <div className="rounded-[24px] border border-border/70 bg-background/70 p-4">
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-[11px] uppercase tracking-[0.2em] text-primary/70">Tags</p>
+              <Button
+                className="h-auto rounded-full px-3 py-1.5 text-xs font-medium"
+                data-testid="open-tag-input"
+                onClick={() => {
+                  setTagErrorMessage(null);
+                  setIsTagInputVisible(true);
                 }}
+                type="button"
+                variant="ghost"
               >
-                <Input
-                  data-testid="tag-input"
-                  onChange={(event) => setTagInput(event.currentTarget.value)}
-                  placeholder="Add a tag like deep work or #family-time"
-                  value={tagInput}
-                />
-                <Button className="rounded-full sm:min-w-[132px]" type="submit" variant="outline">
-                  Add tag
-                </Button>
-              </form>
+                + tag
+              </Button>
+            </div>
+
+            <div className="mt-3 space-y-3">
+              {selectedTags.length > 0 ? (
+                <div className="flex flex-wrap gap-2" data-testid="selected-tags">
+                  {selectedTags.map((tag) => (
+                    <button
+                      className={
+                        tag.isManual
+                          ? "inline-flex items-center gap-2 rounded-full border border-primary/25 bg-primary/10 px-3 py-2 text-sm font-medium text-primary transition hover:bg-primary/15"
+                          : "inline-flex items-center rounded-full border border-dashed border-border/80 bg-background/80 px-3 py-2 text-sm font-medium text-muted-foreground"
+                      }
+                      data-testid={`selected-tag-${tag.slug}`}
+                      key={tag.slug}
+                      onClick={() => {
+                        if (tag.isManual) {
+                          toggleManualTag(tag.slug);
+                        }
+                      }}
+                      type="button"
+                    >
+                      {formatTagLabel(tag.slug)}
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+
+              {isTagInputVisible ? (
+                <form
+                  className="flex items-center gap-2"
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    createManualTag();
+                  }}
+                >
+                  <Input
+                    data-testid="tag-input"
+                    onChange={(event) => setTagInput(event.currentTarget.value)}
+                    placeholder="Add a tag"
+                    value={tagInput}
+                  />
+                  <Button
+                    className="rounded-full px-4"
+                    data-testid="submit-tag-input"
+                    type="submit"
+                    variant="outline"
+                  >
+                    Add
+                  </Button>
+                </form>
+              ) : null}
 
               {tagErrorMessage ? (
                 <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-200">
                   {tagErrorMessage}
                 </div>
               ) : null}
-
-              {selectedTags.length === 0 ? (
-                <div className="rounded-[28px] border border-dashed border-border/70 bg-background/70 px-6 py-10 text-center">
-                  <Tags className="mx-auto h-10 w-10 text-primary/70" />
-                  <p className="mt-4 font-medium text-foreground">No tags on this page yet</p>
-                  <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                    Keep them lightweight. A tap or a `#tag` in the writing space is enough.
-                  </p>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  <div className="flex flex-wrap gap-2" data-testid="selected-tags">
-                    {selectedTags.map((tag) => (
-                      <button
-                        className={
-                          tag.isManual
-                            ? "inline-flex items-center gap-2 rounded-full border border-primary/25 bg-primary/10 px-3 py-2 text-sm font-medium text-primary transition hover:bg-primary/15"
-                            : "inline-flex items-center gap-2 rounded-full border border-dashed border-border/80 bg-background/80 px-3 py-2 text-sm font-medium text-muted-foreground"
-                        }
-                        data-testid={`selected-tag-${tag.slug}`}
-                        key={tag.slug}
-                        onClick={() => {
-                          if (tag.isManual) {
-                            toggleManualTag(tag.slug);
-                          }
-                        }}
-                        type="button"
-                      >
-                        {!tag.isManual ? <Hash className="h-3.5 w-3.5" /> : null}
-                        {formatTagLabel(tag.slug)}
-                      </button>
-                    ))}
-                  </div>
-                  <p className="text-sm leading-6 text-muted-foreground">
-                    Filled tags stay pinned from the picker. Outlined tags are coming from the
-                    `#hashtags` inside the writing space.
-                  </p>
-                </div>
-              )}
-
-              {availableSuggestions.length > 0 ? (
-                <div className="space-y-3">
-                  <p className="text-[11px] uppercase tracking-[0.24em] text-primary/70">
-                    Recent tags
-                  </p>
-                  <div className="flex flex-wrap gap-2" data-testid="tag-suggestions">
-                    {availableSuggestions.map((tag) => (
-                      <button
-                        className="rounded-full border border-border/70 bg-background/80 px-3 py-2 text-sm font-medium text-foreground transition hover:border-primary/30 hover:bg-accent/20"
-                        data-testid={`tag-suggestion-${tag.slug}`}
-                        key={tag.slug}
-                        onClick={() => toggleManualTag(tag.slug)}
-                        type="button"
-                      >
-                        {formatTagLabel(tag.slug)}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              ) : null}
             </div>
-          </EntrySection>
-        </div>
-
-        <aside className="space-y-4 lg:sticky lg:top-24 lg:self-start">
-          <SaveIndicator
-            errorMessage={errorMessage}
-            hasUnsavedChanges={hasUnsavedChanges}
-            onRetry={() => {
-              setErrorMessage(null);
-              lastFailedDraftRef.current = null;
-              void saveNormalizedDraft(normalizedDraft, {
-                allowFailedSnapshotRetry: true,
-              });
-            }}
-            saveState={saveState}
-            status={inferredStatus}
-            updatedAt={updatedAt}
-          />
-
-          <Card className="space-y-4 p-5">
-            <div className="flex items-center gap-3">
-              <span className="flex h-11 w-11 items-center justify-center rounded-full border border-primary/20 bg-primary/10 text-primary">
-                <Heart className="h-5 w-5" />
-              </span>
-              <div>
-                <p className="text-sm font-medium text-foreground">Mood anchor</p>
-                <p className="text-sm text-muted-foreground">
-                  {draft.moodLabel ?? "No mood chosen yet"}
-                </p>
-              </div>
-            </div>
-
-            <div className="rounded-[24px] border border-border/70 bg-background/70 p-4">
-              <p className="text-[11px] uppercase tracking-[0.2em] text-primary/70">
-                Writing room
-              </p>
-              <p className="mt-3 text-sm leading-6 text-muted-foreground">
-                {draft.dailyCapture.trim()
-                  ? "The longer writing space is carrying real texture already."
-                  : "The page is still light. Use the writing space only when the smaller fields stop being enough."}
-              </p>
-            </div>
-
-            <div className="rounded-[24px] border border-border/70 bg-background/70 p-4">
-              <p className="text-[11px] uppercase tracking-[0.2em] text-primary/70">
-                Image cadence
-              </p>
-              <p className="mt-3 text-sm leading-6 text-muted-foreground">
-                {imageAttachments.length > 0
-                  ? `${imageAttachments.length} image${imageAttachments.length === 1 ? "" : "s"} attached for ${formatMonthDayFromSlug(entry.entryDate)}.`
-                  : "No photos on this page yet. That is fine when the words are enough."}
-              </p>
-            </div>
-
-            <div className="rounded-[24px] border border-border/70 bg-background/70 p-4">
-              <p className="text-[11px] uppercase tracking-[0.2em] text-primary/70">
-                Tag memory
-              </p>
-              <p className="mt-3 text-sm leading-6 text-muted-foreground">
-                {selectedTags.length > 0
-                  ? `${selectedTags.length} tag${selectedTags.length === 1 ? "" : "s"} are helping this day stay easy to find again.`
-                  : "No tags yet. Keep them light enough to add without breaking your writing rhythm."}
-              </p>
-              {selectedTags.length > 0 ? (
-                <div className="mt-3 flex flex-wrap gap-2">
-                  {selectedTags.slice(0, 6).map((tag) => (
-                    <span
-                      className="rounded-full border border-border/70 bg-background/80 px-2.5 py-1 text-xs font-medium text-foreground"
-                      key={tag.slug}
-                    >
-                      {formatTagLabel(tag.slug)}
-                    </span>
-                  ))}
-                </div>
-              ) : null}
-            </div>
-
-            <div className="rounded-[24px] border border-border/70 bg-background/70 p-4">
-              <p className="text-[11px] uppercase tracking-[0.2em] text-primary/70">
-                Evening note
-              </p>
-              <p className="mt-3 text-sm leading-6 text-muted-foreground">
-                {draft.eveningGood1 || draft.eveningGood2 || draft.eveningGood3
-                  ? "You already have something worth closing the day around."
-                  : "Three good things is enough. They do not need to be big to count."}
-              </p>
-            </div>
-
-            <div className="flex items-center gap-2 rounded-[24px] border border-border/70 bg-background/75 px-4 py-3 text-sm text-muted-foreground">
-              <MoonStar className="h-4 w-4 text-primary" />
-              Private by default. One person, one journal, one honest page at a time.
-            </div>
-          </Card>
+          </div>
         </aside>
       </main>
 
       <WritingModal
         dateLabel={dateLabel}
         onChange={(value) => setFieldValue("dailyCapture", value)}
-        onClose={() => setIsWritingOpen(false)}
+        onClose={() => {
+          setActiveTextField(null);
+          setIsWritingOpen(false);
+          void commitLatestDraft();
+        }}
+        onTextareaBlur={commitFieldChange}
+        onTextareaFocus={() => setActiveTextField("dailyCapture")}
         open={isWritingOpen}
         value={draft.dailyCapture}
       />

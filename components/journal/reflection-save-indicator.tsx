@@ -39,9 +39,9 @@ export function ReflectionSaveIndicator({
   const tone =
     saveState === "error"
       ? {
-          body: errorMessage ?? "Autosave hit a problem. Your reflection is still here.",
+          body: errorMessage ?? "Saving hit a problem. Your reflection is still here.",
           icon: AlertCircle,
-          label: "Autosave paused",
+          label: "Save paused",
           textColor: "text-red-700 dark:text-red-200",
         }
       : saveState === "saving"
@@ -59,16 +59,16 @@ export function ReflectionSaveIndicator({
               textColor: "text-emerald-700 dark:text-emerald-300",
             }
           : hasUnsavedChanges
-            ? {
-                body: "Changes are waiting for the next autosave.",
-                icon: PenLine,
-                label: "Unsaved changes",
-                textColor: "text-amber-700 dark:text-amber-300",
-              }
+          ? {
+              body: "Changes save when you leave the field or page. A quiet 1-minute safeguard stays on.",
+              icon: PenLine,
+              label: "Unsaved changes",
+              textColor: "text-amber-700 dark:text-amber-300",
+            }
             : {
                 body: updatedAt
                   ? `Last saved at ${formatUpdatedAt(updatedAt)}.`
-                  : "Autosave is ready when you start reflecting.",
+                  : "Changes save when you leave the field or page.",
                 icon: Cloud,
                 label: "Idle",
                 textColor: "text-muted-foreground",

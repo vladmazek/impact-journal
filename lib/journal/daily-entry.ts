@@ -4,6 +4,7 @@ import { dbDateToDateSlug, dateSlugToUtcDate, isValidDateSlug } from "@/lib/date
 import { removeStoredFile, type StoredImage } from "@/lib/media";
 import { prisma } from "@/lib/prisma";
 import {
+  buildDailyEntryParsedTagSourceText,
   createEmptyDailyEntry,
   inferDailyEntryStatus,
   isDailyEntryEffectivelyEmpty,
@@ -308,7 +309,7 @@ async function syncDailyEntryTags(
   dailyEntryId: string,
   draft: DailyEntryDraft,
 ) {
-  const parsedTags = extractTagsFromText(draft.dailyCapture);
+  const parsedTags = extractTagsFromText(buildDailyEntryParsedTagSourceText(draft));
   const tagMap = new Map(parsedTags.map((tag) => [tag.slug, tag]));
 
   for (const slug of draft.manualTagSlugs) {
@@ -489,7 +490,7 @@ export async function saveDailyEntryForUser(
   draft: DailyEntryDraft,
 ): Promise<DailyEntrySaveResult> {
   const normalizedDraft = normalizeDailyEntryDraft(draft);
-  const parsedTags = extractTagsFromText(normalizedDraft.dailyCapture);
+  const parsedTags = extractTagsFromText(buildDailyEntryParsedTagSourceText(normalizedDraft));
   const tagCount = new Set([
     ...normalizedDraft.manualTagSlugs,
     ...parsedTags.map((tag) => tag.slug),

@@ -1,13 +1,13 @@
 "use client";
 
 import { useRef } from "react";
-import Link from "next/link";
 import { LogOut, NotebookText, Settings2 } from "lucide-react";
 
 import { logoutAction } from "@/lib/actions/auth";
 import { getMediaUrl } from "@/lib/media-url";
 import { type SessionUser } from "@/lib/auth/session";
-import { DateNavigation } from "@/components/journal/date-navigation";
+import { GuardedLink } from "@/components/journal/guarded-link";
+import { useOptionalJournalRuntime } from "@/components/journal/journal-runtime";
 import { WeekNavigation } from "@/components/journal/week-navigation";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
 import {
@@ -21,6 +21,7 @@ import {
 
 type AppTopbarProps = {
   activeView: "daily" | "settings" | "weekly";
+  brandHref: string;
   dailyHref: string;
   navigation?:
     | {
@@ -61,8 +62,15 @@ function viewLinkClass(isActive: boolean) {
     : "rounded-full border border-border/70 bg-background/80 px-3 py-1.5 text-sm font-medium text-muted-foreground transition hover:border-primary/20 hover:text-foreground";
 }
 
+function iconLinkClass(isActive: boolean) {
+  return isActive
+    ? "flex h-10 w-10 items-center justify-center rounded-full border border-primary/20 bg-primary/10 text-primary"
+    : "flex h-10 w-10 items-center justify-center rounded-full border border-border/70 bg-background/80 text-muted-foreground transition hover:border-primary/20 hover:text-foreground";
+}
+
 export function AppTopbar({
   activeView,
+  brandHref,
   dailyHref,
   navigation,
   settingsHref,
@@ -71,39 +79,42 @@ export function AppTopbar({
   weekHref,
 }: AppTopbarProps) {
   const logoutFormRef = useRef<HTMLFormElement | null>(null);
+  const journalRuntime = useOptionalJournalRuntime();
+  const topbarSaveStatus = journalRuntime?.topbarSaveStatus;
+
+  const statusToneClass =
+    topbarSaveStatus?.tone === "danger"
+      ? "text-red-700 dark:text-red-200"
+      : topbarSaveStatus?.tone === "primary"
+        ? "text-primary"
+        : topbarSaveStatus?.tone === "success"
+          ? "text-emerald-700 dark:text-emerald-300"
+          : topbarSaveStatus?.tone === "warning"
+            ? "text-amber-700 dark:text-amber-300"
+            : "text-muted-foreground";
 
   return (
     <header className="sticky top-0 z-30 border-b border-border/60 bg-background/75 backdrop-blur-xl">
       <div className="mx-auto flex w-full max-w-6xl flex-col gap-3 px-4 py-3 sm:px-6 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex min-w-0 flex-col gap-3 lg:flex-row lg:items-center">
           <div className="flex min-w-0 items-center gap-3">
-            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-primary/20 bg-primary/10 text-primary">
-              <NotebookText className="h-5 w-5" />
-            </span>
-            <div className="min-w-0">
-              <p className="font-serif text-xl leading-none text-foreground">Impact Journal</p>
-              <p className="truncate text-sm text-muted-foreground">{subtitle}</p>
-            </div>
+            <GuardedLink
+              aria-label="Open today's page"
+              className="flex min-w-0 items-center gap-3 rounded-[24px] transition hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2"
+              data-testid="journal-home-link"
+              href={brandHref}
+              pendingLabel="today"
+            >
+              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-primary/20 bg-primary/10 text-primary">
+                <NotebookText className="h-5 w-5" />
+              </span>
+              <div className="min-w-0">
+                <p className="font-serif text-xl leading-none text-foreground">Impact Journal</p>
+                <p className="truncate text-sm text-muted-foreground">{subtitle}</p>
+              </div>
+            </GuardedLink>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
-            <Link className={viewLinkClass(activeView === "daily")} href={dailyHref}>
-              Day
-            </Link>
-            <Link className={viewLinkClass(activeView === "weekly")} href={weekHref}>
-              Week
-            </Link>
-            <Link className={viewLinkClass(activeView === "settings")} href={settingsHref}>
-              Settings
-            </Link>
-          </div>
-
-          {navigation?.kind === "date" ? (
-            <DateNavigation
-              currentDate={navigation.currentDate}
-              todayDate={navigation.todayDate}
-            />
-          ) : null}
           {navigation?.kind === "week" ? (
             <WeekNavigation
               currentHref={navigation.currentHref}
@@ -114,8 +125,23 @@ export function AppTopbar({
           ) : null}
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <GuardedLink className={viewLinkClass(activeView === "daily")} href={dailyHref}>
+            Day
+          </GuardedLink>
+          <GuardedLink className={viewLinkClass(activeView === "weekly")} href={weekHref}>
+            Week
+          </GuardedLink>
           <ThemeToggle currentPreference={user.themePreference} persistPreference />
+          <GuardedLink
+            aria-label="Open journal settings"
+            className={iconLinkClass(activeView === "settings")}
+            href={settingsHref}
+            pendingLabel="settings"
+            title="Settings"
+          >
+            <Settings2 className="h-4 w-4" />
+          </GuardedLink>
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -147,12 +173,37 @@ export function AppTopbar({
             <DropdownMenuContent align="end" className="w-64">
               <DropdownMenuLabel>Workspace</DropdownMenuLabel>
               <div className="px-3 pb-2 text-sm text-muted-foreground">{user.email}</div>
+              {topbarSaveStatus ? (
+                <>
+                  <DropdownMenuSeparator />
+                  <div className="space-y-2 px-3 py-2">
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="text-[11px] uppercase tracking-[0.22em] text-muted-foreground">
+                        Save status
+                      </p>
+                      {topbarSaveStatus.badge ? (
+                        <span className="rounded-full border border-border/70 bg-background/70 px-2.5 py-1 text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
+                          {topbarSaveStatus.badge}
+                        </span>
+                      ) : null}
+                    </div>
+                    <div className="space-y-1">
+                      <p className={`text-sm font-medium ${statusToneClass}`}>
+                        {topbarSaveStatus.label}
+                      </p>
+                      <p className="text-xs leading-5 text-muted-foreground">
+                        {topbarSaveStatus.body}
+                      </p>
+                    </div>
+                  </div>
+                </>
+              ) : null}
               <DropdownMenuSeparator />
               <DropdownMenuItem asChild>
-                <Link href={settingsHref}>
+                <GuardedLink href={settingsHref}>
                   <Settings2 className="mr-2 h-4 w-4" />
                   Open settings
-                </Link>
+                </GuardedLink>
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <form action={logoutAction} ref={logoutFormRef}>

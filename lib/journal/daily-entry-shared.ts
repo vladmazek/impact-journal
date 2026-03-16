@@ -7,7 +7,7 @@ export const DAILY_MOODS = [
   { value: "tired", emoji: "😮‍💨", label: "Tired" },
   { value: "stressed", emoji: "😣", label: "Stressed" },
   { value: "low", emoji: "😔", label: "Low" },
-  { value: "overwhelmed", emoji: "😤", label: "Overwhelmed" },
+  { value: "overwhelmed", emoji: "😤", label: "Angry" },
 ] as const;
 
 export type DailyEntryStatus = "not_started" | "in_progress" | "completed";
@@ -56,6 +56,20 @@ export type DailyEntryDraft = {
   relaxItems: string[];
   todayGreat: string;
 };
+
+type DailyEntryParsedTagSource = Pick<
+  DailyEntryDraft,
+  | "affirmation"
+  | "dailyCapture"
+  | "eveningGood1"
+  | "eveningGood2"
+  | "eveningGood3"
+  | "gratitude1"
+  | "gratitude2"
+  | "gratitude3"
+  | "improveTomorrow"
+  | "todayGreat"
+>;
 
 export type DailyEntryRecord = DailyEntryDraft & {
   entryId: string | null;
@@ -190,6 +204,23 @@ export function inferDailyEntryStatus(
   }
 
   return "in_progress";
+}
+
+export function buildDailyEntryParsedTagSourceText(draft: DailyEntryParsedTagSource) {
+  return [
+    draft.gratitude1,
+    draft.gratitude2,
+    draft.gratitude3,
+    draft.todayGreat,
+    draft.affirmation,
+    draft.dailyCapture,
+    draft.eveningGood1,
+    draft.eveningGood2,
+    draft.eveningGood3,
+    draft.improveTomorrow,
+  ]
+    .filter((value) => value.length > 0)
+    .join("\n");
 }
 
 export function isDailyEntryEffectivelyEmpty(

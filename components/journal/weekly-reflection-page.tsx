@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ArrowRight, Heart, Sparkles, TrendingUp } from "lucide-react";
 
@@ -14,7 +13,11 @@ import {
   type WeeklyReflectionRecord,
 } from "@/lib/journal/weekly-reflection-shared";
 import { EntrySection } from "@/components/journal/entry-section";
-import { ReflectionSaveIndicator } from "@/components/journal/reflection-save-indicator";
+import { GuardedLink } from "@/components/journal/guarded-link";
+import {
+  type TopbarSaveStatus,
+  useJournalRuntime,
+} from "@/components/journal/journal-runtime";
 import { MoodPicker } from "@/components/journal/mood-picker";
 import { WritingModal } from "@/components/journal/writing-modal";
 import { Button } from "@/components/ui/button";
@@ -32,6 +35,80 @@ type LongFieldName =
   | "nextWeekIntention"
   | "summaryContext"
   | "wins";
+
+const SAVE_GUARD_INTERVAL_MS = 60_000;
+
+function formatUpdatedAt(updatedAt: string | null) {
+  if (!updatedAt) {
+    return "Nothing saved yet.";
+  }
+
+  return new Intl.DateTimeFormat("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(new Date(updatedAt));
+}
+
+function buildWeeklyTopbarSaveStatus({
+  completedEntryCount,
+  errorMessage,
+  hasUnsavedChanges,
+  saveState,
+  updatedAt,
+}: {
+  completedEntryCount: number;
+  errorMessage: string | null;
+  hasUnsavedChanges: boolean;
+  saveState: SaveState;
+  updatedAt: string | null;
+}): TopbarSaveStatus {
+  const badge = `${completedEntryCount} completed day${completedEntryCount === 1 ? "" : "s"}`;
+
+  if (saveState === "error") {
+    return {
+      badge,
+      body: errorMessage ?? "Saving hit a problem. Your reflection is still here.",
+      label: "Save paused",
+      tone: "danger",
+    };
+  }
+
+  if (saveState === "saving") {
+    return {
+      badge,
+      body: "Saving this week quietly in the background.",
+      label: "Saving",
+      tone: "primary",
+    };
+  }
+
+  if (saveState === "saved") {
+    return {
+      badge,
+      body: `Saved at ${formatUpdatedAt(updatedAt)}.`,
+      label: "Saved",
+      tone: "success",
+    };
+  }
+
+  if (hasUnsavedChanges) {
+    return {
+      badge,
+      body: "Changes save when you leave the field or page. A quiet 1-minute safeguard stays on.",
+      label: "Unsaved changes",
+      tone: "warning",
+    };
+  }
+
+  return {
+    badge,
+    body: updatedAt
+      ? `Last saved at ${formatUpdatedAt(updatedAt)}.`
+      : "Changes save when you leave the field or page.",
+    label: "Idle",
+    tone: "muted",
+  };
+}
 
 const longFieldContent: Record<
   LongFieldName,
@@ -93,6 +170,7 @@ function messageFromError(error: unknown, fallback: string) {
 }
 
 export function WeeklyReflectionPage({ reflection }: WeeklyReflectionPageProps) {
+  const { isNavigating, registerFlushHandler, setTopbarSaveStatus } = useJournalRuntime();
   const [draft, setDraft] = useState<WeeklyReflectionDraft>(() =>
     normalizeWeeklyReflectionDraft(reflection),
   );
@@ -105,20 +183,27 @@ export function WeeklyReflectionPage({ reflection }: WeeklyReflectionPageProps) 
   const [saveState, setSaveState] = useState<SaveState>("idle");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [activeField, setActiveField] = useState<LongFieldName | null>(null);
+  const [activeTextField, setActiveTextField] = useState<string | null>(null);
 
   const lastPersistedDraftRef = useRef(normalizeWeeklyReflectionDraft(reflection));
-  const inFlightDraftRef = useRef<WeeklyReflectionDraft | null>(null);
   const lastFailedDraftRef = useRef<WeeklyReflectionDraft | null>(null);
   const latestDraftRef = useRef(draft);
   const persistPromiseRef = useRef<Promise<boolean> | null>(null);
+  const requestedSaveRef = useRef<{
+    allowFailedSnapshotRetry: boolean;
+    snapshot: WeeklyReflectionDraft;
+  } | null>(null);
 
   const normalizedDraft = normalizeWeeklyReflectionDraft(draft);
   const hasUnsavedChanges = !weeklyDraftsMatch(normalizedDraft, lastPersistedDraftRef.current);
   const activeFieldContent = activeField ? longFieldContent[activeField] : null;
 
   useEffect(() => {
-    latestDraftRef.current = draft;
-  }, [draft]);
+    if (isNavigating) {
+      setActiveField(null);
+      setActiveTextField(null);
+    }
+  }, [isNavigating]);
 
   useEffect(() => {
     if (
@@ -138,8 +223,31 @@ export function WeeklyReflectionPage({ reflection }: WeeklyReflectionPageProps) 
     }
   }, [hasUnsavedChanges, saveState]);
 
+  useEffect(() => {
+    setTopbarSaveStatus(
+      buildWeeklyTopbarSaveStatus({
+        completedEntryCount,
+        errorMessage,
+        hasUnsavedChanges,
+        saveState,
+        updatedAt,
+      }),
+    );
+
+    return () => {
+      setTopbarSaveStatus(null);
+    };
+  }, [
+    completedEntryCount,
+    errorMessage,
+    hasUnsavedChanges,
+    saveState,
+    setTopbarSaveStatus,
+    updatedAt,
+  ]);
+
   const saveNormalizedDraft = useCallback(
-    async (
+    (
       snapshot: WeeklyReflectionDraft,
       options: {
         allowFailedSnapshotRetry?: boolean;
@@ -147,85 +255,117 @@ export function WeeklyReflectionPage({ reflection }: WeeklyReflectionPageProps) 
     ) => {
       const normalizedSnapshot = normalizeWeeklyReflectionDraft(snapshot);
 
-      if (
-        persistPromiseRef.current &&
-        inFlightDraftRef.current &&
-        weeklyDraftsMatch(inFlightDraftRef.current, normalizedSnapshot)
-      ) {
-        return persistPromiseRef.current;
+      if (weeklyDraftsMatch(normalizedSnapshot, lastPersistedDraftRef.current)) {
+        return Promise.resolve(true);
       }
 
-      if (
-        !options.allowFailedSnapshotRetry &&
-        lastFailedDraftRef.current &&
-        weeklyDraftsMatch(lastFailedDraftRef.current, normalizedSnapshot)
-      ) {
-        return false;
-      }
+      requestedSaveRef.current = {
+        allowFailedSnapshotRetry: options.allowFailedSnapshotRetry ?? false,
+        snapshot: normalizedSnapshot,
+      };
 
-      setSaveState("saving");
-      inFlightDraftRef.current = normalizedSnapshot;
+      const drainPendingSaves = async () => {
+        if (persistPromiseRef.current) {
+          return persistPromiseRef.current;
+        }
 
-      const persistPromise = (async () => {
-        try {
-          const result = await saveWeeklyReflectionAction(normalizedSnapshot);
+        const persistPromise = (async () => {
+          let didAllRequestedSavesSucceed = true;
 
-          setReflectionId(result.reflectionId);
-          setUpdatedAt(result.updatedAt);
-          setCompletedEntryCount(result.completedEntryCount);
-          setDaySummaries(result.daySummaries);
-          setErrorMessage(null);
-          lastPersistedDraftRef.current = normalizedSnapshot;
-          lastFailedDraftRef.current = null;
+          while (requestedSaveRef.current) {
+            const request = requestedSaveRef.current;
+            requestedSaveRef.current = null;
 
-          const latestNormalizedDraft = normalizeWeeklyReflectionDraft(latestDraftRef.current);
+            if (weeklyDraftsMatch(request.snapshot, lastPersistedDraftRef.current)) {
+              continue;
+            }
 
-          if (weeklyDraftsMatch(latestNormalizedDraft, normalizedSnapshot)) {
-            setSaveState("saved");
-          } else {
-            setSaveState("idle");
+            if (
+              !request.allowFailedSnapshotRetry &&
+              lastFailedDraftRef.current &&
+              weeklyDraftsMatch(lastFailedDraftRef.current, request.snapshot)
+            ) {
+              didAllRequestedSavesSucceed = false;
+              continue;
+            }
+
+            setSaveState("saving");
+
+            try {
+              const result = await saveWeeklyReflectionAction(request.snapshot);
+
+              setReflectionId(result.reflectionId);
+              setUpdatedAt(result.updatedAt);
+              setCompletedEntryCount(result.completedEntryCount);
+              setDaySummaries(result.daySummaries);
+              setErrorMessage(null);
+              lastPersistedDraftRef.current = request.snapshot;
+              lastFailedDraftRef.current = null;
+
+              const latestNormalizedDraft = normalizeWeeklyReflectionDraft(latestDraftRef.current);
+
+              if (weeklyDraftsMatch(latestNormalizedDraft, request.snapshot)) {
+                setSaveState(requestedSaveRef.current ? "saving" : "saved");
+              } else if (!requestedSaveRef.current) {
+                setSaveState("idle");
+              }
+            } catch (error) {
+              const message = messageFromError(
+                error,
+                "Autosave hit a problem. Please try again.",
+              );
+
+              lastFailedDraftRef.current = request.snapshot;
+              setErrorMessage(message);
+              setSaveState("error");
+              didAllRequestedSavesSucceed = false;
+            }
           }
 
-          return true;
-        } catch (error) {
-          const message = messageFromError(
-            error,
-            "Autosave hit a problem. Please try again.",
-          );
+          return didAllRequestedSavesSucceed && requestedSaveRef.current === null;
+        })();
 
-          lastFailedDraftRef.current = normalizedSnapshot;
-          setErrorMessage(message);
-          setSaveState("error");
-          return false;
-        } finally {
-          inFlightDraftRef.current = null;
+        persistPromiseRef.current = persistPromise.finally(() => {
           persistPromiseRef.current = null;
-        }
-      })();
+          if (requestedSaveRef.current) {
+            void drainPendingSaves();
+          }
+        });
 
-      persistPromiseRef.current = persistPromise;
-      return persistPromise;
+        return persistPromiseRef.current;
+      };
+
+      return drainPendingSaves();
     },
     [],
   );
 
   useEffect(() => {
-    if (!hasUnsavedChanges || persistPromiseRef.current) {
+    if (!activeTextField) {
       return;
     }
 
-    if (lastFailedDraftRef.current && weeklyDraftsMatch(normalizedDraft, lastFailedDraftRef.current)) {
-      return;
-    }
+    const intervalId = window.setInterval(() => {
+      const latestNormalizedDraft = normalizeWeeklyReflectionDraft(latestDraftRef.current);
 
-    const timeoutId = window.setTimeout(() => {
-      void saveNormalizedDraft(normalizedDraft);
-    }, 900);
+      if (weeklyDraftsMatch(latestNormalizedDraft, lastPersistedDraftRef.current)) {
+        return;
+      }
+
+      if (
+        lastFailedDraftRef.current &&
+        weeklyDraftsMatch(latestNormalizedDraft, lastFailedDraftRef.current)
+      ) {
+        return;
+      }
+
+      void saveNormalizedDraft(latestNormalizedDraft);
+    }, SAVE_GUARD_INTERVAL_MS);
 
     return () => {
-      window.clearTimeout(timeoutId);
+      window.clearInterval(intervalId);
     };
-  }, [hasUnsavedChanges, normalizedDraft, saveNormalizedDraft]);
+  }, [activeTextField, saveNormalizedDraft]);
 
   useEffect(() => {
     if (saveState !== "saved") {
@@ -241,15 +381,62 @@ export function WeeklyReflectionPage({ reflection }: WeeklyReflectionPageProps) 
     };
   }, [saveState]);
 
-  const setLongFieldValue = useCallback((field: LongFieldName, value: string) => {
-    setDraft((currentDraft) => ({
-      ...currentDraft,
-      [field]: value,
-    }));
-  }, []);
+  const updateDraft = useCallback(
+    (updater: (currentDraft: WeeklyReflectionDraft) => WeeklyReflectionDraft) => {
+      const nextDraft = updater(latestDraftRef.current);
+      latestDraftRef.current = nextDraft;
+      setDraft(nextDraft);
+      return nextDraft;
+    },
+    [],
+  );
+
+  const commitLatestDraft = useCallback(() => {
+    return saveNormalizedDraft(latestDraftRef.current);
+  }, [saveNormalizedDraft]);
+
+  const flushPendingChanges = useCallback(async () => {
+    setActiveField(null);
+    setActiveTextField(null);
+
+    const latestNormalizedDraft = normalizeWeeklyReflectionDraft(latestDraftRef.current);
+
+    if (!weeklyDraftsMatch(latestNormalizedDraft, lastPersistedDraftRef.current)) {
+      if (
+        lastFailedDraftRef.current &&
+        weeklyDraftsMatch(latestNormalizedDraft, lastFailedDraftRef.current)
+      ) {
+        return false;
+      }
+
+      return saveNormalizedDraft(latestNormalizedDraft);
+    }
+
+    return persistPromiseRef.current ?? true;
+  }, [saveNormalizedDraft]);
+
+  useEffect(() => registerFlushHandler(flushPendingChanges), [
+    flushPendingChanges,
+    registerFlushHandler,
+  ]);
+
+  const setLongFieldValue = useCallback(
+    (field: LongFieldName, value: string) => {
+      updateDraft((currentDraft) => ({
+        ...currentDraft,
+        [field]: value,
+      }));
+    },
+    [updateDraft],
+  );
+
+  const commitFieldChange = useCallback(() => {
+    setActiveTextField(null);
+    void commitLatestDraft();
+  }, [commitLatestDraft]);
 
   const setLifeAreaRating = useCallback((areaKey: WeeklyLifeAreaKey, rating: number) => {
-    setDraft((currentDraft) => ({
+    const nextDraft = updateDraft((currentDraft) => ({
       ...currentDraft,
       lifeAreaRatings: currentDraft.lifeAreaRatings.map((lifeArea) =>
         lifeArea.areaKey === areaKey
@@ -261,10 +448,11 @@ export function WeeklyReflectionPage({ reflection }: WeeklyReflectionPageProps) 
           : lifeArea,
       ),
     }));
-  }, []);
+    void saveNormalizedDraft(nextDraft);
+  }, [saveNormalizedDraft, updateDraft]);
 
   const setLifeAreaNote = useCallback((areaKey: WeeklyLifeAreaKey, note: string) => {
-    setDraft((currentDraft) => ({
+    updateDraft((currentDraft) => ({
       ...currentDraft,
       lifeAreaRatings: currentDraft.lifeAreaRatings.map((lifeArea) =>
         lifeArea.areaKey === areaKey
@@ -275,7 +463,7 @@ export function WeeklyReflectionPage({ reflection }: WeeklyReflectionPageProps) 
           : lifeArea,
       ),
     }));
-  }, []);
+  }, [updateDraft]);
 
   return (
     <>
@@ -335,14 +523,15 @@ export function WeeklyReflectionPage({ reflection }: WeeklyReflectionPageProps) 
             title="How did this week feel?"
           >
             <MoodPicker
-              onChange={(nextMood) =>
-                setDraft((currentDraft) => ({
+              onChange={(nextMood) => {
+                const nextDraft = updateDraft((currentDraft) => ({
                   ...currentDraft,
                   overallMoodEmoji: nextMood.emoji,
                   overallMoodLabel: nextMood.label,
                   overallMoodValue: nextMood.value,
-                }))
-              }
+                }));
+                void saveNormalizedDraft(nextDraft);
+              }}
               value={draft.overallMoodValue}
             />
           </EntrySection>
@@ -415,7 +604,9 @@ export function WeeklyReflectionPage({ reflection }: WeeklyReflectionPageProps) 
                     <Input
                       data-testid={`life-area-${area.key}-note`}
                       disabled={rating.rating === null}
+                      onBlur={commitFieldChange}
                       onChange={(event) => setLifeAreaNote(area.key, event.currentTarget.value)}
+                      onFocus={() => setActiveTextField(`lifeAreaRatings.${area.key}.note`)}
                       placeholder={
                         rating.rating === null
                           ? "Pick a rating first to add a note."
@@ -478,7 +669,7 @@ export function WeeklyReflectionPage({ reflection }: WeeklyReflectionPageProps) 
           >
             <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
               {daySummaries.map((day) => (
-                <Link href={`/entry/${day.entryDate}`} key={day.entryDate}>
+                <GuardedLink href={`/entry/${day.entryDate}`} key={day.entryDate}>
                   <Card className="h-full p-5 transition hover:border-primary/30 hover:bg-accent/10">
                     <div className="flex items-start justify-between gap-3">
                       <div>
@@ -513,28 +704,13 @@ export function WeeklyReflectionPage({ reflection }: WeeklyReflectionPageProps) 
                       <ArrowRight className="h-4 w-4" />
                     </div>
                   </Card>
-                </Link>
+                </GuardedLink>
               ))}
             </div>
           </EntrySection>
         </div>
 
         <aside className="space-y-4 lg:sticky lg:top-24 lg:self-start">
-          <ReflectionSaveIndicator
-            completedEntryCount={completedEntryCount}
-            errorMessage={errorMessage}
-            hasUnsavedChanges={hasUnsavedChanges}
-            onRetry={() => {
-              setErrorMessage(null);
-              lastFailedDraftRef.current = null;
-              void saveNormalizedDraft(normalizedDraft, {
-                allowFailedSnapshotRetry: true,
-              });
-            }}
-            saveState={saveState}
-            updatedAt={updatedAt}
-          />
-
           <Card className="space-y-4 p-5">
             <div className="rounded-[24px] border border-border/70 bg-background/70 p-4">
               <p className="text-[11px] uppercase tracking-[0.2em] text-primary/70">
@@ -585,7 +761,17 @@ export function WeeklyReflectionPage({ reflection }: WeeklyReflectionPageProps) 
             setLongFieldValue(activeField, value);
           }
         }}
-        onClose={() => setActiveField(null)}
+        onClose={() => {
+          setActiveField(null);
+          setActiveTextField(null);
+          void commitLatestDraft();
+        }}
+        onTextareaBlur={commitFieldChange}
+        onTextareaFocus={() => {
+          if (activeField) {
+            setActiveTextField(activeField);
+          }
+        }}
         open={activeField !== null}
         placeholder={activeFieldContent?.placeholder}
         testId={activeField ? `weekly-${activeField}-textarea` : "weekly-writing-textarea"}

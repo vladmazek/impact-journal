@@ -168,10 +168,10 @@ describe("daily entry persistence", () => {
     const { user } = await createOwnerUser();
 
     await saveDailyEntryForUser(user.id, {
-      affirmation: "",
-      dailyCapture: "A calm dinner with #Family_Time and #deep-work.",
+      affirmation: "Stay with #deep-work.",
+      dailyCapture: "",
       entryDate: "2026-03-14",
-      eveningGood1: "",
+      eveningGood1: "A calm dinner with #Family_Time.",
       eveningGood2: "",
       eveningGood3: "",
       gratitude1: "",
@@ -197,17 +197,54 @@ describe("daily entry persistence", () => {
     ]);
   });
 
+  it("parses hashtags from morning, evening, and free-form fields together", async () => {
+    const { user } = await createOwnerUser();
+
+    await saveDailyEntryForUser(user.id, {
+      affirmation: "Keep it steady with #clarity.",
+      dailyCapture: "A late note about #deep-work.",
+      entryDate: "2026-03-14",
+      eveningGood1: "Dinner with #family-time.",
+      eveningGood2: "",
+      eveningGood3: "",
+      gratitude1: "Coffee and #sunrise.",
+      gratitude2: "",
+      gratitude3: "",
+      improveTomorrow: "Leave room for #rest.",
+      manualTagSlugs: [],
+      moodEmoji: null,
+      moodLabel: null,
+      moodValue: null,
+      relaxItems: [],
+      todayGreat: "A gentle plan for #focus.",
+    });
+
+    const persistedEntry = await findDailyEntryByDate(
+      user.id,
+      dateSlugToUtcDate("2026-03-14"),
+    );
+
+    expect(persistedEntry?.tags.map((tag) => `${tag.tag.slug}:${tag.isManual}`)).toEqual([
+      "clarity:false",
+      "deep-work:false",
+      "family-time:false",
+      "focus:false",
+      "rest:false",
+      "sunrise:false",
+    ]);
+  });
+
   it("removes parsed-only tags when the hashtag leaves the writing but keeps manually pinned tags", async () => {
     const { user } = await createOwnerUser();
 
     await saveDailyEntryForUser(user.id, {
       affirmation: "",
-      dailyCapture: "A good day with #family-time and #sunset.",
+      dailyCapture: "",
       entryDate: "2026-03-15",
-      eveningGood1: "",
+      eveningGood1: "A good day with #sunset.",
       eveningGood2: "",
       eveningGood3: "",
-      gratitude1: "",
+      gratitude1: "#family-time showed up early.",
       gratitude2: "",
       gratitude3: "",
       improveTomorrow: "",
@@ -221,12 +258,12 @@ describe("daily entry persistence", () => {
 
     await saveDailyEntryForUser(user.id, {
       affirmation: "",
-      dailyCapture: "A good day with family and a long walk.",
+      dailyCapture: "",
       entryDate: "2026-03-15",
-      eveningGood1: "",
+      eveningGood1: "A good day with family and a long walk.",
       eveningGood2: "",
       eveningGood3: "",
-      gratitude1: "",
+      gratitude1: "Family showed up early.",
       gratitude2: "",
       gratitude3: "",
       improveTomorrow: "",

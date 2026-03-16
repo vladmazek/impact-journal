@@ -25,6 +25,12 @@ const shortMonthDayYearFormatter = new Intl.DateTimeFormat("en-US", {
   year: "numeric",
 });
 
+const monthYearFormatter = new Intl.DateTimeFormat("en-US", {
+  timeZone: "UTC",
+  month: "long",
+  year: "numeric",
+});
+
 const weekdayFormatter = new Intl.DateTimeFormat("en-US", {
   timeZone: "UTC",
   weekday: "long",
@@ -72,6 +78,46 @@ export function shiftDateSlug(dateSlug: string, dayOffset: number) {
   return dbDateToDateSlug(date);
 }
 
+export function shiftDateSlugByMonths(dateSlug: string, monthOffset: number) {
+  const date = dateSlugToUtcDate(dateSlug);
+  const originalDay = date.getUTCDate();
+  const shifted = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + monthOffset, 1));
+  const lastDayOfTargetMonth = new Date(
+    Date.UTC(shifted.getUTCFullYear(), shifted.getUTCMonth() + 1, 0),
+  ).getUTCDate();
+
+  shifted.setUTCDate(Math.min(originalDay, lastDayOfTargetMonth));
+
+  return dbDateToDateSlug(shifted);
+}
+
+export function getDateSlugsForCalendarMonthGrid(dateSlug: string) {
+  const date = dateSlugToUtcDate(dateSlug);
+  const monthStart = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1));
+  const monthEnd = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + 1, 0));
+  const gridStart = new Date(monthStart);
+  const gridEnd = new Date(monthEnd);
+
+  gridStart.setUTCDate(gridStart.getUTCDate() - gridStart.getUTCDay());
+  gridEnd.setUTCDate(gridEnd.getUTCDate() + (6 - gridEnd.getUTCDay()));
+
+  const weeks: string[][] = [];
+  const cursor = new Date(gridStart);
+
+  while (cursor <= gridEnd) {
+    const week: string[] = [];
+
+    for (let dayIndex = 0; dayIndex < 7; dayIndex += 1) {
+      week.push(dbDateToDateSlug(cursor));
+      cursor.setUTCDate(cursor.getUTCDate() + 1);
+    }
+
+    weeks.push(week);
+  }
+
+  return weeks;
+}
+
 export function formatLongDate(date: Date) {
   return longDateFormatter.format(date);
 }
@@ -88,6 +134,10 @@ export function formatShortMonthDayYear(date: Date) {
   return shortMonthDayYearFormatter.format(date);
 }
 
+export function formatMonthYear(date: Date) {
+  return monthYearFormatter.format(date);
+}
+
 export function formatLongDateFromSlug(dateSlug: string) {
   return formatLongDate(dateSlugToUtcDate(dateSlug));
 }
@@ -98,6 +148,10 @@ export function formatMonthDayFromSlug(dateSlug: string) {
 
 export function formatShortMonthDayFromSlug(dateSlug: string) {
   return formatShortMonthDay(dateSlugToUtcDate(dateSlug));
+}
+
+export function formatMonthYearFromSlug(dateSlug: string) {
+  return formatMonthYear(dateSlugToUtcDate(dateSlug));
 }
 
 export function formatWeekdayFromSlug(dateSlug: string) {
@@ -142,6 +196,26 @@ export function resolveTodayDateSlug(date: Date, timeZone: string) {
   }
 
   return `${year}-${month}-${day}`;
+}
+
+export function resolveHourInTimeZone(date: Date, timeZone: string) {
+  const formatter = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    hour: "2-digit",
+    hourCycle: "h23",
+  });
+
+  const hour = formatter.formatToParts(date).find((part) => part.type === "hour")?.value;
+
+  if (!hour) {
+    throw new Error(`Unable to resolve an hour for timezone ${timeZone}.`);
+  }
+
+  return Number(hour);
+}
+
+export function resolveDailyPromptSection(date: Date, timeZone: string) {
+  return resolveHourInTimeZone(date, timeZone) < 12 ? "morning" : "evening";
 }
 
 export function toDateSlugInTimeZone(date: Date, timeZone: string) {

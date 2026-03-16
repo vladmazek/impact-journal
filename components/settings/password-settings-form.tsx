@@ -24,17 +24,6 @@ export function PasswordSettingsForm() {
 
   return (
     <form action={formAction} className="space-y-5" ref={formRef}>
-      <div className="space-y-2">
-        <Label htmlFor="currentPassword">Current password</Label>
-        <Input
-          autoComplete="current-password"
-          id="currentPassword"
-          name="currentPassword"
-          placeholder="Enter your current password"
-          type="password"
-        />
-      </div>
-
       <div className="grid gap-5 sm:grid-cols-2">
         <div className="space-y-2">
           <Label htmlFor="newPassword">New password</Label>
