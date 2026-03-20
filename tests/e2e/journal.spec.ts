@@ -123,6 +123,8 @@ test("selecting a mood collapses the picker and the sidebar summary reopens it",
 
   await page.goto("/entry/2026-03-17");
   await expect(page.getByTestId("entry-mood-picker-section")).toBeVisible();
+  await expect(page.getByTestId("mood-anchor-button")).toHaveCount(0);
+  await expect(page.getByText("No mood chosen yet")).toHaveCount(0);
 
   await page
     .getByTestId("entry-mood-picker-section")
@@ -130,6 +132,7 @@ test("selecting a mood collapses the picker and the sidebar summary reopens it",
     .click();
 
   await expect(page.getByTestId("entry-mood-picker-section")).toHaveCount(0);
+  await expect(page.getByText("Mood anchor")).toHaveCount(0);
   await expect(page.getByTestId("mood-anchor-button")).toContainText("Great");
 
   await expect
@@ -141,6 +144,7 @@ test("selecting a mood collapses the picker and the sidebar summary reopens it",
 
   await page.reload();
   await expect(page.getByTestId("entry-mood-picker-section")).toHaveCount(0);
+  await expect(page.getByText("Mood anchor")).toHaveCount(0);
   await expect(page.getByTestId("mood-anchor-button")).toContainText("Great");
 
   await page.getByTestId("mood-anchor-button").click();
@@ -227,6 +231,49 @@ test("today's entry opens the time-appropriate prompt section and still supports
     await expect(eveningAccordionContent).toBeVisible();
     await expect(morningAccordionContent).toBeHidden();
   }
+});
+
+test("prompt forms use the permanent cards layout and keep values after reload", async ({
+  page,
+}) => {
+  const { user } = await loginAsSeededOwner(page);
+
+  await page.goto("/entry/2026-03-14");
+
+  await expect(page.getByTestId("morning-prompt-form")).toBeVisible();
+  await expect(page.getByTestId("evening-prompt-form")).toBeVisible();
+  await expect(page.getByTestId("morning-prompt-form-variant-toggle")).toHaveCount(0);
+  await expect(page.getByTestId("evening-prompt-form-variant-toggle")).toHaveCount(0);
+  await expect(page.getByText("Form look")).toHaveCount(0);
+  await expect(page.getByText(/^Today$/)).toHaveCount(0);
+  await expect(page.getByText(/^Keep close$/i)).toHaveCount(0);
+
+  await page.getByLabel("Gratitude one").fill("Light through the window");
+  await page.getByLabel("Good thing one").fill("Dinner together felt easy");
+  await page.getByLabel("How could today have gone better?").click();
+
+  await expect(page.getByLabel("Gratitude one")).toHaveValue("Light through the window");
+  await expect(page.getByLabel("Good thing one")).toHaveValue("Dinner together felt easy");
+
+  await expect
+    .poll(async () => {
+      const entry = await findDailyEntryByDate(user.id, dateSlugToUtcDate("2026-03-14"));
+      return {
+        eveningGood1: entry?.eveningGood1 ?? null,
+        gratitude1: entry?.gratitude1 ?? null,
+      };
+    })
+    .toEqual({
+      eveningGood1: "Dinner together felt easy",
+      gratitude1: "Light through the window",
+    });
+
+  await page.reload();
+
+  await expect(page.getByTestId("morning-prompt-form")).toBeVisible();
+  await expect(page.getByTestId("evening-prompt-form")).toBeVisible();
+  await expect(page.getByLabel("Gratitude one")).toHaveValue("Light through the window");
+  await expect(page.getByLabel("Good thing one")).toHaveValue("Dinner together felt easy");
 });
 
 test("the writing modal stays open while paused and preserves text across close and reopen", async ({

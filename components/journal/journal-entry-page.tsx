@@ -5,7 +5,6 @@ import {
   Camera,
   ChevronDown,
   Expand,
-  Heart,
   ImagePlus,
   LampDesk,
   Trash2,
@@ -95,7 +94,147 @@ type PromptAccordionSectionProps = {
   title: string;
 };
 
+type PromptFieldConfig = {
+  field: TextFieldName;
+  id: string;
+  label: string;
+  placeholder: string;
+};
+
+type PromptTextareaFieldProps = {
+  eyebrow?: string;
+  id: string;
+  label: string;
+  onBlur: () => void;
+  onChange: (value: string) => void;
+  onFocus: () => void;
+  placeholder: string;
+  value: string;
+};
+
+type PromptLineFieldProps = {
+  id: string;
+  label: string;
+  onBlur: () => void;
+  onChange: (value: string) => void;
+  onFocus: () => void;
+  placeholder: string;
+  value: string;
+};
+
 const SAVE_GUARD_INTERVAL_MS = 60_000;
+
+const MORNING_SHORT_FIELDS: PromptFieldConfig[] = [
+  {
+    field: "gratitude1",
+    id: "gratitude1",
+    label: "Gratitude one",
+    placeholder: "Something quietly good",
+  },
+  {
+    field: "gratitude2",
+    id: "gratitude2",
+    label: "Gratitude two",
+    placeholder: "Another thing worth noticing",
+  },
+  {
+    field: "gratitude3",
+    id: "gratitude3",
+    label: "Gratitude three",
+    placeholder: "A person, place, or moment",
+  },
+];
+
+const EVENING_SHORT_FIELDS: PromptFieldConfig[] = [
+  {
+    field: "eveningGood1",
+    id: "eveningGood1",
+    label: "Good thing one",
+    placeholder: "A win, kindness, or bright spot",
+  },
+  {
+    field: "eveningGood2",
+    id: "eveningGood2",
+    label: "Good thing two",
+    placeholder: "Another thing worth holding onto",
+  },
+  {
+    field: "eveningGood3",
+    id: "eveningGood3",
+    label: "Good thing three",
+    placeholder: "A quiet detail that mattered",
+  },
+];
+
+function CardPromptLineField({
+  id,
+  label,
+  onBlur,
+  onChange,
+  onFocus,
+  placeholder,
+  value,
+}: PromptLineFieldProps) {
+  return (
+    <div className="px-5 py-4 sm:px-6">
+      <Label className="sr-only" htmlFor={id}>
+        {label}
+      </Label>
+      <Input
+        aria-label={label}
+        className="h-auto border-0 bg-transparent px-0 py-0 text-[15px] leading-7 shadow-none placeholder:text-muted-foreground/85 focus-visible:ring-0"
+        id={id}
+        onBlur={onBlur}
+        onChange={(event) => onChange(event.currentTarget.value)}
+        onFocus={onFocus}
+        placeholder={placeholder}
+        value={value}
+      />
+    </div>
+  );
+}
+
+function CardPromptTextareaField({
+  eyebrow,
+  id,
+  label,
+  onBlur,
+  onChange,
+  onFocus,
+  placeholder,
+  value,
+}: PromptTextareaFieldProps) {
+  const hasEyebrow = Boolean(eyebrow);
+
+  return (
+    <div className="rounded-[30px] border border-border/60 bg-background/55 p-5">
+      <div className={cn("space-y-2", hasEyebrow ? "" : "space-y-1")}>
+        {hasEyebrow ? (
+          <p className="text-[11px] uppercase tracking-[0.2em] text-primary/65">{eyebrow}</p>
+        ) : null}
+        <p className="text-lg font-medium leading-7 text-foreground">{label}</p>
+      </div>
+      <div className={cn("border-t border-border/50", hasEyebrow ? "mt-4 pt-4" : "mt-3 pt-3")}>
+        <Label className="sr-only" htmlFor={id}>
+          {label}
+        </Label>
+        <Textarea
+          aria-label={label}
+          className={cn(
+            "border-0 bg-transparent px-0 py-0 text-[15px] leading-7 shadow-none placeholder:text-muted-foreground/80 focus-visible:ring-0",
+            hasEyebrow ? "min-h-[122px]" : "min-h-[148px]",
+          )}
+          id={id}
+          onBlur={onBlur}
+          onChange={(event) => onChange(event.currentTarget.value)}
+          onFocus={onFocus}
+          placeholder={placeholder}
+          value={value}
+        />
+      </div>
+    </div>
+  );
+}
 
 function formatUpdatedAt(updatedAt: string | null) {
   if (!updatedAt) {
@@ -344,20 +483,20 @@ function PromptAccordionSection({
       <button
         aria-controls={contentId}
         aria-expanded={isOpen}
-        className="w-full px-6 py-6 text-left transition hover:bg-accent/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-inset sm:px-8 sm:py-8"
+        className="w-full px-6 py-5 text-left transition hover:bg-accent/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-inset sm:px-8 sm:py-6"
         data-testid={`${section}-accordion-trigger`}
         onClick={() => onToggle(section)}
         type="button"
       >
         <div className="flex items-start justify-between gap-4">
-          <div className="min-w-0 space-y-3">
+          <div className="min-w-0 space-y-2.5">
             <p className="text-[11px] uppercase tracking-[0.24em] text-primary/70">{eyebrow}</p>
-            <div className="space-y-3">
+            <div className="space-y-2.5">
               <h2 className="font-serif text-2xl font-medium tracking-tight text-foreground sm:text-[2.25rem] sm:leading-tight">
                 {title}
               </h2>
               {isOpen ? (
-                <p className="max-w-2xl text-base leading-7 text-muted-foreground sm:text-lg">
+                <p className="max-w-2xl text-base leading-7 text-muted-foreground sm:text-[1.05rem]">
                   {description}
                 </p>
               ) : null}
@@ -378,7 +517,7 @@ function PromptAccordionSection({
 
       <div
         className={cn(
-          "border-t border-border/50 p-6 pt-6 sm:p-8 sm:pt-6",
+          "border-t border-border/50 p-6 pt-5 sm:p-8 sm:pt-5",
           !isOpen && "hidden",
         )}
         data-testid={`${section}-accordion-content`}
@@ -979,61 +1118,48 @@ export function JournalEntryPage({
             section="morning"
             title="Open the page gently"
           >
-            <div className="grid gap-5 lg:grid-cols-2">
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="gratitude1">Gratitude one</Label>
-                  <Input
-                    id="gratitude1"
-                    onBlur={commitFieldChange}
-                    onChange={(event) => setFieldValue("gratitude1", event.currentTarget.value)}
-                    onFocus={() => setActiveTextField("gratitude1")}
-                    placeholder="Something quietly good"
-                    value={draft.gratitude1}
-                  />
+            <div className="space-y-5">
+              <div className="space-y-5" data-testid="morning-prompt-form">
+                <div className="rounded-[30px] border border-border/60 bg-background/55 p-4 sm:p-5">
+                  <div className="mb-4 space-y-1">
+                    <p className="text-[11px] uppercase tracking-[0.22em] text-primary/70">
+                      Three gratitudes
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      Three quick lines, nothing more.
+                    </p>
+                  </div>
+                  <div className="overflow-hidden rounded-[24px] border border-border/50 bg-background/85 divide-y divide-border/50">
+                    {MORNING_SHORT_FIELDS.map((field) => (
+                      <CardPromptLineField
+                        id={field.id}
+                        key={field.id}
+                        label={field.label}
+                        onBlur={commitFieldChange}
+                        onChange={(value) => setFieldValue(field.field, value)}
+                        onFocus={() => setActiveTextField(field.field)}
+                        placeholder={field.placeholder}
+                        value={draft[field.field]}
+                      />
+                    ))}
+                  </div>
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="gratitude2">Gratitude two</Label>
-                  <Input
-                    id="gratitude2"
-                    onBlur={commitFieldChange}
-                    onChange={(event) => setFieldValue("gratitude2", event.currentTarget.value)}
-                    onFocus={() => setActiveTextField("gratitude2")}
-                    placeholder="Another thing worth noticing"
-                    value={draft.gratitude2}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="gratitude3">Gratitude three</Label>
-                  <Input
-                    id="gratitude3"
-                    onBlur={commitFieldChange}
-                    onChange={(event) => setFieldValue("gratitude3", event.currentTarget.value)}
-                    onFocus={() => setActiveTextField("gratitude3")}
-                    placeholder="A person, place, or moment"
-                    value={draft.gratitude3}
-                  />
-                </div>
-              </div>
 
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="todayGreat">What would make today great?</Label>
-                  <Textarea
+                <div className="grid gap-4 lg:grid-cols-2">
+                  <CardPromptTextareaField
                     id="todayGreat"
+                    label="What would make today great?"
                     onBlur={commitFieldChange}
-                    onChange={(event) => setFieldValue("todayGreat", event.currentTarget.value)}
+                    onChange={(value) => setFieldValue("todayGreat", value)}
                     onFocus={() => setActiveTextField("todayGreat")}
                     placeholder="A simple win, a feeling, or a small intention."
                     value={draft.todayGreat}
                   />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="affirmation">Daily affirmation</Label>
-                  <Textarea
+                  <CardPromptTextareaField
                     id="affirmation"
+                    label="Daily affirmation"
                     onBlur={commitFieldChange}
-                    onChange={(event) => setFieldValue("affirmation", event.currentTarget.value)}
+                    onChange={(value) => setFieldValue("affirmation", value)}
                     onFocus={() => setActiveTextField("affirmation")}
                     placeholder="A line you want to keep close today."
                     value={draft.affirmation}
@@ -1108,51 +1234,38 @@ export function JournalEntryPage({
             section="evening"
             title="Close the day"
           >
-            <div className="grid gap-5 lg:grid-cols-2">
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="eveningGood1">Good thing one</Label>
-                  <Input
-                    id="eveningGood1"
-                    onBlur={commitFieldChange}
-                    onChange={(event) => setFieldValue("eveningGood1", event.currentTarget.value)}
-                    onFocus={() => setActiveTextField("eveningGood1")}
-                    placeholder="A win, kindness, or bright spot"
-                    value={draft.eveningGood1}
-                  />
+            <div className="space-y-5">
+              <div className="space-y-5" data-testid="evening-prompt-form">
+                <div className="rounded-[30px] border border-border/60 bg-background/55 p-4 sm:p-5">
+                  <div className="mb-4 space-y-1">
+                    <p className="text-[11px] uppercase tracking-[0.22em] text-primary/70">
+                      Three good things
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      Three quick details before the day closes.
+                    </p>
+                  </div>
+                  <div className="overflow-hidden rounded-[24px] border border-border/50 bg-background/85 divide-y divide-border/50">
+                    {EVENING_SHORT_FIELDS.map((field) => (
+                      <CardPromptLineField
+                        id={field.id}
+                        key={field.id}
+                        label={field.label}
+                        onBlur={commitFieldChange}
+                        onChange={(value) => setFieldValue(field.field, value)}
+                        onFocus={() => setActiveTextField(field.field)}
+                        placeholder={field.placeholder}
+                        value={draft[field.field]}
+                      />
+                    ))}
+                  </div>
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="eveningGood2">Good thing two</Label>
-                  <Input
-                    id="eveningGood2"
-                    onBlur={commitFieldChange}
-                    onChange={(event) => setFieldValue("eveningGood2", event.currentTarget.value)}
-                    onFocus={() => setActiveTextField("eveningGood2")}
-                    placeholder="Another thing worth holding onto"
-                    value={draft.eveningGood2}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="eveningGood3">Good thing three</Label>
-                  <Input
-                    id="eveningGood3"
-                    onBlur={commitFieldChange}
-                    onChange={(event) => setFieldValue("eveningGood3", event.currentTarget.value)}
-                    onFocus={() => setActiveTextField("eveningGood3")}
-                    placeholder="A quiet detail that mattered"
-                    value={draft.eveningGood3}
-                  />
-                </div>
-              </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="improveTomorrow">How could today have gone better?</Label>
-                <Textarea
+                <CardPromptTextareaField
                   id="improveTomorrow"
+                  label="How could today have gone better?"
                   onBlur={commitFieldChange}
-                  onChange={(event) =>
-                    setFieldValue("improveTomorrow", event.currentTarget.value)
-                  }
+                  onChange={(value) => setFieldValue("improveTomorrow", value)}
                   onFocus={() => setActiveTextField("improveTomorrow")}
                   placeholder="Keep it kind and specific. What would help tomorrow feel steadier?"
                   value={draft.improveTomorrow}
@@ -1170,38 +1283,33 @@ export function JournalEntryPage({
             todayDate={todayDate}
           />
 
-          <Card className="space-y-4 p-5">
-            {hasSelectedMood ? (
+          {hasSelectedMood ? (
+            <Card className="space-y-4 p-5">
               <button
                 aria-controls="entry-mood-section"
                 aria-expanded={isMoodSectionVisible}
-                className="flex w-full items-center gap-3 rounded-[20px] text-left transition hover:bg-accent/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2"
+                className="flex w-full items-center gap-4 rounded-[22px] text-left transition hover:bg-accent/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2"
                 data-testid="mood-anchor-button"
                 onClick={openMoodSection}
                 type="button"
               >
-                <span className="flex h-11 w-11 items-center justify-center rounded-full border border-primary/20 bg-primary/10 text-2xl">
-                  <span aria-hidden="true" role="img">
+                <span className="relative flex h-14 w-14 shrink-0 items-center justify-center rounded-full border border-primary/25 bg-[radial-gradient(circle_at_30%_30%,rgba(255,255,255,0.32),rgba(59,130,246,0.16)_42%,rgba(59,130,246,0.08)_100%)] text-[1.9rem] shadow-[inset_0_1px_0_rgba(255,255,255,0.12)]">
+                  <span
+                    aria-hidden="true"
+                    className="translate-y-[1px] drop-shadow-[0_2px_10px_rgba(59,130,246,0.22)]"
+                    role="img"
+                  >
                     {draft.moodEmoji}
                   </span>
                 </span>
                 <div>
-                  <p className="text-sm font-medium text-foreground">Mood anchor</p>
-                  <p className="text-sm text-muted-foreground">{draft.moodLabel}</p>
+                  <p className="font-serif text-2xl leading-none text-foreground">
+                    {draft.moodLabel}
+                  </p>
                 </div>
               </button>
-            ) : (
-              <div className="flex items-center gap-3">
-                <span className="flex h-11 w-11 items-center justify-center rounded-full border border-primary/20 bg-primary/10 text-primary">
-                  <Heart className="h-5 w-5" />
-                </span>
-                <div>
-                  <p className="text-sm font-medium text-foreground">Mood anchor</p>
-                  <p className="text-sm text-muted-foreground">No mood chosen yet</p>
-                </div>
-              </div>
-            )}
-          </Card>
+            </Card>
+          ) : null}
 
           <div className="rounded-[24px] border border-border/70 bg-background/70 p-4">
             <input

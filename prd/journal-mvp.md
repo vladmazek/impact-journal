@@ -2,20 +2,22 @@
 
 ## Purpose
 
-Define the minimum lovable product for Impact Journal.
+Define the current minimum lovable product for Impact Journal.
 
 ## Product position
 
-Impact Journal is a private, elegant journal for one person. It combines quick daily emotional check-ins with a calm writing space and lightweight weekly reflection.
+Impact Journal is a private, elegant journal for one person. It combines quick emotional check-ins, a calm writing space, lightweight tags, image attachments, and a weekly reflection rhythm.
 
 ## Target user
 
 The sole user of the app:
+
 - wants a very low-friction daily journaling habit
-- likes a guided structure
+- likes a guided structure without feeling boxed in
 - wants room for free writing
 - wants a calm, premium interface
 - sometimes wants to attach a photo to remember the day
+- wants the journal to stay personal, private, and lightweight
 
 ## MVP goals
 
@@ -24,6 +26,7 @@ The sole user of the app:
 - support both short structured prompts and longer reflection
 - allow quick photo capture/attachment
 - make browsing by date feel natural
+- keep the interface calm instead of dashboard-heavy
 
 ## Core objects
 
@@ -35,40 +38,75 @@ The sole user of the app:
 
 ## Daily journaling flow
 
-### Morning section
-Fields:
-- gratitude item 1
-- gratitude item 2
-- gratitude item 3
-- what would make today great
-- daily affirmation
+### Quote-first header
+
+Every daily entry opens with a single motivational quote.
+
+Current behavior:
+
+- one random quote per page load
+- author shown in the accent position
+- quote shown as the primary header content
 
 ### Fast mood check
-One-tap mood choice using 6–7 emoji options.
 
-Recommended default set:
+One-tap mood choice using 7 emoji options.
+
+Current set:
+
 - 😄 Great
 - 🙂 Good
 - 😐 Okay
 - 😮‍💨 Tired
 - 😣 Stressed
 - 😔 Low
-- 😤 Overwhelmed
+- 😤 Angry
 
 Store both:
+
 - internal value
 - display emoji/label pairing
 
+After selection:
+
+- the picker collapses
+- a sidebar mood anchor appears
+- clicking the sidebar mood anchor reopens the picker
+
+Before selection:
+
+- no sidebar mood anchor should appear
+
+### Morning section
+
+Fields:
+
+- gratitude item 1
+- gratitude item 2
+- gratitude item 3
+- what would make today great
+- daily affirmation
+
+Current layout:
+
+- one full-width grouped card for the three gratitude lines
+- two writing cards below for `what would make today great` and `daily affirmation`
+- stacked vertically on mobile and two-up on larger screens where it helps
+
 ### “To relax” list
+
 A small lightweight list for things that help the user unwind later.
 
 MVP shape:
+
 - 0 to 5 short items
 - quick add/remove
 - no nested tasks or due dates
 
 ### Daily capture
+
 A free-form long writing area for:
+
 - notes about the day
 - annoyances
 - observations
@@ -76,17 +114,35 @@ A free-form long writing area for:
 - optional image attachment context
 
 ### Evening section
+
 Fields:
+
 - amazing/good thing 1
 - amazing/good thing 2
 - amazing/good thing 3
 - how could today have been better / what to improve tomorrow
+
+Current layout:
+
+- one full-width grouped card for the three good things
+- one wide reflection card below for `how could today have gone better?`
+- stacked cleanly on mobile without a separate comparison mode
+
+### Prompt accordion behavior
+
+Current behavior:
+
+- on today's page, morning/evening prompt accordions default from the saved timezone
+- before local noon: morning open, evening collapsed
+- from local noon onward: evening open, morning collapsed
+- on non-today entries: both prompt sections start expanded
 
 ## Weekly reflection flow
 
 Create one reflection per ISO week.
 
 Fields:
+
 - overall week mood
 - energy level summary
 - wins
@@ -95,6 +151,7 @@ Fields:
 - intention for next week
 
 Life-area rating set for MVP:
+
 - work
 - family/home
 - health
@@ -102,46 +159,51 @@ Life-area rating set for MVP:
 - personal fulfillment
 
 Each life area:
+
 - simple 1–5 rating
 - optional short note
 
 Weekly screen should also show:
+
 - the moods chosen across that week
 - count of completed daily entries
-- quick links back to the week’s days
+- quick links back to the week's days
 
 ## Entry behaviors
 
 ### One entry per date
-The app should maintain one daily entry per local calendar date.
+
+The app maintains one daily entry per local calendar date.
 
 ### Save behavior
-Accept either:
-- explicit save button with dirty-state indicator, or
-- autosave with visible save state
 
-Preferred:
-- autosave after short debounce plus explicit reassurance in UI
+Preferred behavior:
+
+- autosave after a short debounce
+- visible save reassurance in the UI
 
 ### Completion model
-Entry does not need a heavy workflow engine.
 
-Support simple states:
+The app uses simple inferred states:
+
 - not started
 - in progress
 - completed
 
-Completion can be inferred from meaningful content presence.
+Completion is inferred from mood plus meaningful content.
 
 ## Tags
 
 MVP tag features:
+
 - reusable tags
-- tap existing tag chip to add to entry
-- type `#tag` in free text to suggest/create a tag
-- tags displayed on entry card/header
+- manual add/remove from a lightweight sidebar control
+- type `#tag` in entry text to suggest/create a tag
+- parsed hashtags harvested from morning fields, evening fields, and daily capture
+- manual tags preserved independently from parsed tags
 
 Non-goals:
+
 - nested tags
 - tag groups
 - boolean search language
@@ -149,18 +211,21 @@ Non-goals:
 ## Images
 
 MVP image features:
+
 - upload image to daily entry
-- optionally add caption later if easy, otherwise skip for MVP
-- show small gallery/previews on the entry
-- click/tap to enlarge only if easy; otherwise basic preview is sufficient
+- show gallery/previews on the entry
+- click/tap to enlarge
+- delete from the entry
 
 Accepted file types:
+
 - jpeg
 - png
 - webp
-- heic only if practical; otherwise defer
+- heic/heif when the runtime can process them
 
 Non-goals:
+
 - PDFs
 - audio
 - video
@@ -170,26 +235,34 @@ Non-goals:
 ## Browse and navigation
 
 Primary navigation modes:
+
 - today
 - previous/next day
-- date picker or compact calendar
+- compact calendar navigation
 - weekly reflection page
+- day/week toggle in the top bar
 
 The app is mostly browsed by date, not by complex search.
 
 ## Settings for MVP
 
-Minimal settings page:
+Current settings page includes:
+
 - theme
-- account email display
-- password change if easy
-- maybe mood label customization later, but not required
+- display name
+- login email
+- home location autocomplete
+- derived timezone
+- avatar upload
+- password change
 
 ## Success criteria
 
 The MVP is successful if the user can:
+
 - log in
-- open today’s entry
+- open today's entry
+- read the quote-first header without extra dashboard clutter
 - complete the guided prompts
 - choose a mood in one tap
 - jot a free-form reflection
@@ -197,6 +270,7 @@ The MVP is successful if the user can:
 - add tags easily
 - revisit prior days
 - complete one weekly reflection
+- update account details and home location
 - feel that the app is pleasant enough to use daily
 
 ## Explicit non-goals

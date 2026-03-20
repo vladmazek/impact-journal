@@ -10,14 +10,15 @@ Runtime shape:
 Browser
   │
   ▼
-Caddy
+Caddy / reverse proxy
   │
   ▼
 Next.js app
   ├── App Router pages and server actions
   ├── Auth/session logic
   ├── Prisma client
-  └── Private media route
+  ├── Private media route
+  └── Location autocomplete route
           │
           ├── MariaDB
           └── Mounted host media path
@@ -30,7 +31,7 @@ This product does not need a separate API service for MVP. The monolith keeps:
 - fewer moving parts
 - simpler deployment
 - server-rendered reads close to the UI
-- straightforward extension for future Codex sessions
+- straightforward extension for future iterations
 
 ## Implemented route map
 
@@ -41,6 +42,7 @@ This product does not need a separate API service for MVP. The monolith keeps:
 - `@app/(journal)/week/[year]/[week]/page.tsx`
 - `@app/(journal)/settings/page.tsx`
 - `@app/api/media/[...path]/route.ts`
+- `@app/api/location-search/route.ts`
 
 ## Core modules
 
@@ -56,9 +58,14 @@ This product does not need a separate API service for MVP. The monolith keeps:
 
 - one daily entry per local calendar date
 - autosave server action
-- mood, prompts, relax list, long-form daily capture
-- lightweight tag associations
-- image attachment metadata + mounted file storage
+- quote-only header with one random quote per request from `@quotes.json`
+- mood picker that collapses after selection and reopens from a sidebar mood anchor
+- morning and evening prompt accordions with permanent card-based form layouts
+- time-aware default accordion selection on today's page
+- both prompt sections expanded by default on non-today entries
+- relax list and long-form daily capture modal
+- lightweight tag associations and parsed hashtags
+- image attachment metadata plus mounted file storage
 
 ### Weekly reflection
 
@@ -66,13 +73,14 @@ This product does not need a separate API service for MVP. The monolith keeps:
 - timezone-aware current week resolution
 - weekly mood, context, wins, hard moments, felt off, next intention
 - life-area ratings with optional notes
-- quick links back to the week’s daily pages
+- quick links back to the week's daily pages
 
 ### Settings
 
-- display name, email, timezone, avatar, and theme updates
-- password change with current-password verification
-- owner-only account surface, no multi-user admin layer
+- display name, email, home location, derived timezone, avatar, and theme updates
+- authenticated location autocomplete backed by the app's `/api/location-search` route
+- password change
+- owner-only account surface with no multi-user admin layer
 
 ### Media
 
@@ -98,24 +106,35 @@ Key tables:
 
 Notable behavior:
 
+- `User` stores structured home location fields plus the derived timezone used across daily and weekly routing
 - `DailyEntryTag.isManual` preserves picker-selected tags independently from hashtag-derived tags
+- parsed tags are built from morning fields, evening fields, and the free-form writing space
+- relax items do not generate parsed tags
 - daily blank entries are pruned when all meaningful content, images, and tags disappear
 - weekly reflections are suppressed until meaningful content exists
 
 ## Deployment shape
 
-Production uses:
+The repo still includes a standalone production stack:
 
-- multi-stage `@Dockerfile`
+- `@Dockerfile`
 - `@docker-compose.production.yaml`
 - `@docker/caddy/Caddyfile`
 
-Default hosted target:
+That stack assumes:
 
-- domain: `impact.vlad.net`
-- host storage root: `/srv/impact-journal/data`
+- host root: `/srv/impact-journal`
+- persistent DB: `/srv/impact-journal/data/db`
+- persistent media: `/srv/impact-journal/data/media`
 
-Persistent mounts:
+The current live host for `impact.vlad.net` is organized differently:
 
-- DB: `/srv/impact-journal/data/db`
-- media: `/srv/impact-journal/data/media`
+- stack root: `/data/vlad-impact`
+- mirrored app source: `/data/vlad-impact/app`
+- compose file: `/data/vlad-impact/docker-compose.yaml`
+- services: `impact-app`, `impact-db`
+- DB storage: `/data/vlad-impact/mariadb`
+- media storage: `/data/vlad-impact/media`
+- public traffic handled by an already-running host-level Caddy stack
+
+The live host is not a git checkout. Deployments sync the repo into `/data/vlad-impact/app` and rebuild `impact-app`.

@@ -3,6 +3,7 @@
 ## Design intent
 
 The app should feel like a refined digital journal page:
+
 - calm
 - premium
 - spacious
@@ -27,77 +28,95 @@ The inspiration is subtle notebook/journal language, not a literal paper simulat
 - restrained color use
 - blue accent/highlight
 - tasteful use of emoji
-- notebook-inspired layout hints such as lines or ruled spacing only where helpful
+- notebook-inspired layout hints only where they help
 
 ## Theming
 
 ### Light mode
+
 - clean paper-like background
 - dark ink text
 - soft gray dividers
 - blue accent
 
 ### Dark mode
-- black/charcoal surfaces
+
+- charcoal surfaces
 - muted contrast layers
 - blue accent remains the primary interactive color
-- avoid overly saturated neon look
+- avoid overly saturated neon styling
 
 ## Layout model
 
 ### Top bar
+
 Keep it small and quiet.
 
-Contains:
-- current date or viewed date
-- quick navigation
+Current contents:
+
+- brand icon and journal title linking back to today's entry
+- current viewed date
+- day/week switcher on the right
 - theme toggle
 - settings access
 
 ### Main content
-A focused central reading/writing column.
 
-On larger screens:
-- centered main column with breathing room
-- optional small contextual side area only if it adds real value
+Use a focused main column plus a real but minimal sidebar on larger screens.
+
+Current larger-screen rhythm:
+
+- main content holds the quote header and journal sections
+- sidebar holds only contextual surfaces that earn their space
 
 On mobile:
-- everything should collapse gracefully into one primary flow
+
+- the full experience collapses into one primary flow
+- sidebar surfaces stack naturally below the main column
 
 ## Writing experience
 
 This is the most important interaction in the product.
 
 When the user engages a large text field:
+
 - open a large elegant modal/sheet/card
-- it should take up most of the page
-- the background should blur or dim
-- the writing surface should feel clean and distraction-light
+- let it take most of the viewport
+- dim or blur the background
+- keep the writing surface clean and distraction-light
 - show just enough surrounding context to feel grounded
 
-The writing surface should resemble a modern journal page:
-- large comfortable text area
-- clear cursor visibility
-- optional faint ruled guidance
-- excellent spacing
-- no cramped forms
+For structured prompt cards:
+
+- short fields should feel like part of the journal page, not like admin controls
+- remove decorative markers or helper labels when they do not improve clarity
+- return reclaimed space to the writing area instead of replacing it with more chrome
 
 ## Daily screen composition
 
-Recommended order:
-1. mood picker
-2. morning prompts
-3. to relax list
-4. daily capture
-5. evening prompts
-6. images
-7. tags
+Current intended order:
 
-This can adapt slightly on small screens, but should preserve emotional/logical flow.
+1. quote-only header
+2. mood picker
+3. morning prompt accordion
+4. to relax list
+5. free-form writing space
+6. evening prompt accordion
+7. sidebar with mood anchor, images, and tags
+
+Behavior notes:
+
+- today's prompt accordions default from local time in the saved timezone
+- non-today entries start with both prompt sections expanded
+- the mood anchor bubble appears only after a mood is selected
+- prompt bodies use permanent card-based layouts instead of a switchable comparison mode
+- morning uses one grouped three-line card plus two quieter writing cards below
+- evening uses one grouped three-line card plus one wide reflection card below
 
 ## Components
 
 Use shadcn/ui as the base design system where it fits:
+
 - buttons
 - cards
 - dialog/drawer/sheet
@@ -110,23 +129,25 @@ Use shadcn/ui as the base design system where it fits:
 Do not let the app look like a generic admin dashboard.
 
 Create a thin journal-specific layer of reusable components, for example:
+
 - `JournalPageShell`
 - `EntrySection`
 - `MoodPicker`
 - `WritingModal`
 - `RelaxList`
-- `TagChips`
-- `ImageStrip`
+- `DateNavigation`
 - `WeeklyReflectionCard`
 
 ## Motion
 
 Motion should be subtle:
+
 - soft modal entrance
 - quick but calm hover/press states
-- non-jarring success/save indicators
+- non-jarring save indicators
 
 Avoid:
+
 - bouncy animations
 - flashy transitions
 - heavy parallax
@@ -134,39 +155,54 @@ Avoid:
 ## Mood picker UX
 
 Requirements:
+
 - instantly understandable
 - 1-tap selection
 - visible current selection
 - large enough tap targets on mobile
 - emoji-first, label-second
+- no redundant sidebar empty state before selection
 
 ## Image attachment UX
 
 Requirements:
-- drag/drop on desktop if easy
+
 - tap upload on mobile
-- visible upload progress or saving state
+- visible upload or saving state
 - thumbnail previews
-- easy remove before final save if practical
+- easy preview and delete
+- lightweight sidebar presentation instead of a large explanatory block
+
+## Tag UX
+
+Requirements:
+
+- selected tags stay visible and compact
+- `+ tag` reveals the input only when needed
+- parsed hashtag chips stay visually lighter than manual tags
+- no extra helper copy or suggestion blocks competing for space
 
 ## Date browsing UX
 
 Needs to be effortless.
 
 Preferred controls:
+
 - previous day
 - next day
-- jump to today
-- compact date picker or mini calendar
+- jump to today through the brand link
+- compact calendar navigation
+- quick day/week switching
 
-A heavy full dashboard calendar is not required for MVP.
+A heavy dashboard calendar is not required.
 
 ## Weekly reflection UX
 
 Should feel slightly more intentional than the daily flow, but still minimal.
 
 Use:
-- section cards or clean blocks
+
+- clean section cards
 - mood/week summary at top
 - life-area rating controls
 - open text blocks for reflection
@@ -177,10 +213,12 @@ Use:
 Should feel warm and inviting, not sterile.
 
 Examples:
+
 - no entry yet for this date
 - no weekly reflection yet
-- no tags yet
 - no images yet
+
+Avoid empty-state chrome that adds space without helping the user.
 
 ## Accessibility basics
 

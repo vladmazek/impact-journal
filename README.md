@@ -4,15 +4,18 @@ Impact Journal is a private single-user journal built with Next.js, TypeScript, 
 
 ## MVP status
 
-The MVP is now implemented and deployment-ready:
+The current app is implemented, deployed, and in active polish:
 
-- owner setup, login, hashed password auth, and secure HTTP-only sessions
-- protected daily journaling with autosave, mood, guided prompts, relax list, and focused writing modal
+- owner setup, login, logout, hashed password auth, and secure HTTP-only sessions
+- protected daily journaling with autosave, mood selection, relax list, guided prompts, and a focused long-form writing modal
+- a quote-first daily header with one random motivational quote per page load
+- time-aware morning/evening prompt accordions on today's page, with permanent card-based prompt layouts and both prompt sections expanded on older entries
+- a minimal right sidebar for mood anchor, images, and tags
 - image uploads backed by mounted host storage with normalized filenames and DB metadata
-- lightweight tags with picker-based selection plus `#tag` parsing from daily capture
+- lightweight tags with manual pinning plus `#tag` parsing from morning, evening, and free-form writing fields
 - weekly reflection with ISO-week routing, overall mood, life-area ratings, long-form prompts, and day links
-- settings for owner profile, avatar, timezone, theme, email, and password updates
-- Docker-first local development plus a production Docker + Caddy deployment stack for `impact.vlad.net`
+- settings for owner profile, home location autocomplete, derived timezone, avatar, theme, email, and password updates
+- Docker-first local development plus a production deployment currently serving `impact.vlad.net`
 
 ## Product boundaries
 
@@ -23,7 +26,8 @@ Implemented MVP:
 - image attachments only
 - MariaDB + Prisma persistence
 - mounted filesystem media storage
-- mobile-friendly notebook-style daily and weekly flows
+- mobile-friendly daily and weekly flows
+- premium light and dark themes
 
 Not in MVP:
 
@@ -76,6 +80,8 @@ pnpm test:e2e
 pnpm build
 ```
 
+For production-build verification, prefer an isolated image build or the production compose stack. The shared local dev container keeps a mounted `.next` directory, so running `pnpm build` there can poison the dev cache.
+
 ## Runtime and storage
 
 Default local host mounts:
@@ -92,11 +98,15 @@ Images are stored under:
 
 - `originals/YYYY/MM/YYYY-MM-DD-readable-slug[-suffix].ext`
 
+Avatar files live under the same media root in:
+
+- `avatars/`
+
 Private media is served through `@app/api/media/[...path]/route.ts`, not from a public bucket.
 
 ## Production deployment
 
-Production artifacts now live in:
+The repo still includes a standalone production stack in:
 
 - `@Dockerfile`
 - `@docker-compose.production.yaml`
@@ -104,24 +114,31 @@ Production artifacts now live in:
 - `@.env.production.example`
 - `@DEPLOYMENT.md`
 
-Default hosted target:
+That standalone stack defaults to:
 
-- domain: `impact.vlad.net`
-- host root: `/srv/impact-journal`
+- app root: `/srv/impact-journal`
 - persistent data root: `/srv/impact-journal/data`
 
-Quick start:
+The current live deployment for `impact.vlad.net` uses a mirrored app tree under:
 
-```sh
-cp .env.production.example .env.production
-docker compose --env-file .env.production -f docker-compose.production.yaml up -d --build
-```
+- stack root: `/data/vlad-impact`
+- app source mirror: `/data/vlad-impact/app`
+- env file: `/data/vlad-impact/.env`
+- DB storage: `/data/vlad-impact/mariadb`
+- media storage: `/data/vlad-impact/media`
 
-See `@DEPLOYMENT.md` for the full runbook, update flow, and backup notes.
+The live host deploy flow is:
+
+1. back up `/data/vlad-impact/app`
+2. create a MariaDB dump
+3. mirror this repo into `/data/vlad-impact/app` with `rsync --delete`
+4. rebuild `impact-app` from `/data/vlad-impact`
+
+See `@DEPLOYMENT.md` for both the standalone stack notes and the live-host update flow.
 
 ## Repo guide
 
 - `@PLAN.md` tracks the shipped MVP status and next optional work
 - `@SETUP.md` covers local and hosted setup expectations
 - `@ARCHITECTURE.md` describes the monolith, auth, media, and deployment shape
-- `@prd/journal-mvp.md`, `@prd/ui-ux.md`, and `@prd/data-model.md` remain the product source of truth
+- `@prd/journal-mvp.md`, `@prd/ui-ux.md`, and `@prd/data-model.md` describe the current product intent and persistence model

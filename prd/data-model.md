@@ -2,7 +2,7 @@
 
 ## Goal
 
-Define the MVP persistence model for Impact Journal.
+Define the current MVP persistence model for Impact Journal.
 
 ## Database
 
@@ -12,24 +12,39 @@ Use Prisma as the ORM.
 ## Entities
 
 ### User
+
 Represents the single authenticated user.
 
-Suggested fields:
+Current fields:
+
 - `id`
 - `email` (unique)
 - `passwordHash`
 - `displayName` (optional)
-- `timezone` (default to user setting or app default)
+- `locationLabel` (optional)
+- `locationCity` (optional)
+- `locationRegion` (optional)
+- `locationCountry` (optional)
+- `locationLatitude` (optional)
+- `locationLongitude` (optional)
+- `timezone` (derived from saved home location or app default)
+- `themePreference`
+- avatar metadata fields
 - `createdAt`
 - `updatedAt`
 
 Notes:
-- MVP assumes one real account, but keep the schema sane.
+
+- MVP still assumes one real account
+- `timezone` remains the internal source of truth for day and week logic
+- location data is stored structurally so future weather can be added cleanly
 
 ### DailyEntry
+
 Represents one journal record per local calendar date.
 
-Suggested fields:
+Current fields:
+
 - `id`
 - `userId`
 - `entryDate` (`DATE`)
@@ -51,12 +66,15 @@ Suggested fields:
 - `updatedAt`
 
 Constraints:
+
 - unique on (`userId`, `entryDate`)
 
 ### RelaxItem
+
 Small unwind list items linked to a daily entry.
 
-Suggested fields:
+Fields:
+
 - `id`
 - `dailyEntryId`
 - `sortOrder`
@@ -65,38 +83,52 @@ Suggested fields:
 - `updatedAt`
 
 Constraints:
-- max 5 enforced at application layer for MVP
+
+- max 5 enforced at the application layer
 
 ### Tag
+
 Reusable tag label.
 
-Suggested fields:
+Fields:
+
 - `id`
 - `userId`
 - `name`
 - `slug`
-- `color` (optional, probably defer real use)
+- `color` (nullable, not currently emphasized in UI)
 - `createdAt`
 - `updatedAt`
 
 Constraints:
+
 - unique on (`userId`, `slug`)
 
 ### DailyEntryTag
+
 Join table between entries and tags.
 
-Suggested fields:
+Fields:
+
 - `dailyEntryId`
 - `tagId`
+- `isManual`
 - `createdAt`
 
 Constraints:
+
 - unique on (`dailyEntryId`, `tagId`)
 
+Notes:
+
+- `isManual` preserves explicitly added tags even when parsed hashtags disappear
+
 ### ImageAttachment
+
 Metadata for uploaded images.
 
-Suggested fields:
+Fields:
+
 - `id`
 - `userId`
 - `dailyEntryId`
@@ -108,15 +140,17 @@ Suggested fields:
 - `byteSize`
 - `width` (nullable)
 - `height` (nullable)
-- `caption` (nullable; optional MVP)
+- `caption` (nullable, still optional)
 - `sortOrder`
 - `createdAt`
 - `updatedAt`
 
 ### WeeklyReflection
+
 One reflection per ISO week.
 
-Suggested fields:
+Fields:
+
 - `id`
 - `userId`
 - `isoYear`
@@ -133,12 +167,15 @@ Suggested fields:
 - `updatedAt`
 
 Constraints:
+
 - unique on (`userId`, `isoYear`, `isoWeek`)
 
 ### WeeklyLifeAreaRating
+
 Life-area sub-records for a weekly reflection.
 
-Suggested fields:
+Fields:
+
 - `id`
 - `weeklyReflectionId`
 - `areaKey`
@@ -148,69 +185,82 @@ Suggested fields:
 - `updatedAt`
 
 Suggested `areaKey` values:
+
 - `work`
 - `family_home`
 - `health`
 - `stress`
 - `personal_fulfillment`
 
-## Suggested Prisma modeling notes
-
-- Use `DateTime` in Prisma for timestamps.
-- Map `entryDate` to a date-only concept carefully.
-- Store mood label data redundantly for simpler rendering/history.
-- Keep weekly mood separate from derived daily rollups.
-
 ## File storage contract
 
 Files live on disk; DB stores metadata.
 
-Example:
+Examples:
+
 - DB `relativePath`: `originals/2026/03/2026-03-14-beach-sunrise.webp`
 - host absolute path: `/data/journal/media/originals/2026/03/2026-03-14-beach-sunrise.webp`
 
+Avatar files use the same media root under:
+
+- `avatars/...`
+
 Benefits:
+
 - DB stays portable
 - base media root can change by environment
 - file serving is easier to reason about
 
 ## Tag parsing behavior
 
-When parsing `#tag` tokens from `dailyCapture`:
+When parsing `#tag` tokens:
+
+- build the parsed-text source from `gratitude1`, `gratitude2`, `gratitude3`, `todayGreat`, `affirmation`, `dailyCapture`, `eveningGood1`, `eveningGood2`, `eveningGood3`, and `improveTomorrow`
 - normalize to lowercase slug
 - preserve human-friendly display name
 - deduplicate before insert
 - do not allow pathological tag lengths
 
+Explicit exclusions:
+
+- `relaxItems`
+- mood fields
+- manual tags themselves
+
 Suggested app-level rules:
+
 - max 30 chars per tag
 - letters, numbers, dashes, underscores only after normalization
 
 ## Entry completion heuristic
 
-Suggested heuristic for `completed`:
+Current heuristic for `completed`:
+
 - mood selected
-- at least one meaningful text field completed
-- or explicit user mark-complete action
+- and meaningful content present
+
+`in_progress` covers partial states.
 
 Avoid overcomplicating this in the DB.
 
 ## Deletion behavior
 
 ### Images
-Preferred MVP behavior:
-- deleting image attachment removes DB record and deletes file from disk
+
+- deleting an image attachment removes the DB record and deletes the file from disk
 
 ### Tags
+
 - deleting a tag should remove join rows, not delete entries
 
 ### Daily entries
-- hard delete is acceptable for MVP if implemented carefully
-- soft delete can wait unless Codex finds it cheap and clean
+
+- blank daily entries can be pruned when they lose all meaningful content, images, and tags
 
 ## Indexing priorities
 
 Add indexes for:
+
 - `DailyEntry(userId, entryDate)`
 - `WeeklyReflection(userId, isoYear, isoWeek)`
 - `Tag(userId, slug)`
@@ -219,6 +269,7 @@ Add indexes for:
 ## Data migration notes
 
 Because MariaDB is used from day one:
-- create proper initial migration
-- include seed/bootstrap workflow for first user
+
+- create real Prisma migrations
+- include seed/bootstrap workflow for the first user
 - do not prototype on SQLite and “fix later”

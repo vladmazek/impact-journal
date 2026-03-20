@@ -67,7 +67,11 @@ pnpm test:e2e
 pnpm build
 ```
 
+For local interactive development, avoid running `pnpm build` inside a shared dev container if that container persists `.next`.
+
 ## Production setup
+
+### Repo-contained standalone stack
 
 Use:
 
@@ -75,18 +79,31 @@ Use:
 - `@docker/caddy/Caddyfile`
 - `@.env.production.example`
 
-Recommended host layout:
+Default standalone host layout:
 
 - app root: `/srv/impact-journal`
 - env file: `/srv/impact-journal/.env.production`
 - persistent DB: `/srv/impact-journal/data/db`
 - persistent media: `/srv/impact-journal/data/media`
 
-Bring the stack up with:
+Bring the standalone stack up with:
 
 ```sh
 docker compose --env-file .env.production -f docker-compose.production.yaml up -d --build
 ```
+
+### Current live host layout
+
+The currently hosted `impact.vlad.net` deployment uses:
+
+- stack root: `/data/vlad-impact`
+- app mirror: `/data/vlad-impact/app`
+- env file: `/data/vlad-impact/.env`
+- compose file: `/data/vlad-impact/docker-compose.yaml`
+- DB storage: `/data/vlad-impact/mariadb`
+- media storage: `/data/vlad-impact/media`
+
+That live stack is updated by syncing the repo into `/data/vlad-impact/app` and rebuilding `impact-app`.
 
 ## Media storage contract
 
@@ -103,9 +120,11 @@ At minimum, back up:
 
 - MariaDB data or SQL dumps
 - the full mounted media directory
+- the mirrored app source on the live host if you want rollback-ready deploys
 
 Restore order:
 
 1. restore the DB
 2. restore media files
-3. boot the stack and verify private media access through the app
+3. restore or re-sync the app tree
+4. boot the stack and verify private media access through the app
