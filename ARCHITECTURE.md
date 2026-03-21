@@ -60,7 +60,7 @@ This product does not need a separate API service for MVP. The monolith keeps:
 - autosave server action
 - quote-only header with one random quote per request from `@quotes.json`
 - mood picker that collapses after selection and reopens from a sidebar mood anchor
-- morning and evening prompt accordions with permanent card-based form layouts
+- morning and evening prompt accordions with permanent card-based form layouts and built-in morning/night header illustrations
 - time-aware default accordion selection on today's page
 - both prompt sections expanded by default on non-today entries
 - relax list and long-form daily capture modal

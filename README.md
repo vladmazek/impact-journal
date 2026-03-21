@@ -9,7 +9,7 @@ The current app is implemented, deployed, and in active polish:
 - owner setup, login, logout, hashed password auth, and secure HTTP-only sessions
 - protected daily journaling with autosave, mood selection, relax list, guided prompts, and a focused long-form writing modal
 - a quote-first daily header with one random motivational quote per page load
-- time-aware morning/evening prompt accordions on today's page, with permanent card-based prompt layouts and both prompt sections expanded on older entries
+- time-aware morning/evening prompt accordions on today's page, with permanent card-based prompt layouts, ambient morning/night header illustrations, and both prompt sections expanded on older entries
 - a minimal right sidebar for mood anchor, images, and tags
 - image uploads backed by mounted host storage with normalized filenames and DB metadata
 - lightweight tags with manual pinning plus `#tag` parsing from morning, evening, and free-form writing fields

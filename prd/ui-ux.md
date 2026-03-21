@@ -46,6 +46,12 @@ The inspiration is subtle notebook/journal language, not a literal paper simulat
 - blue accent remains the primary interactive color
 - avoid overly saturated neon styling
 
+Future theme polish candidate:
+
+- subtle day/night environmental cues such as minimalist sun-up or moon-up background graphics
+- these should clarify morning versus evening without becoming decorative clutter
+- prefer stronger, clean color over washed-out pastel treatment
+
 ## Layout model
 
 ### Top bar
@@ -112,6 +118,8 @@ Behavior notes:
 - prompt bodies use permanent card-based layouts instead of a switchable comparison mode
 - morning uses one grouped three-line card plus two quieter writing cards below
 - evening uses one grouped three-line card plus one wide reflection card below
+- open prompt headers may use restrained ambient illustrations that reinforce morning versus evening
+- on phone widths, those illustrations should collapse into tiny accents instead of competing with the writing
 
 ## Components
 

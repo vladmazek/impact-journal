@@ -242,6 +242,18 @@ test("prompt forms use the permanent cards layout and keep values after reload",
 
   await expect(page.getByTestId("morning-prompt-form")).toBeVisible();
   await expect(page.getByTestId("evening-prompt-form")).toBeVisible();
+  await expect(
+    page.locator('[data-testid="morning-accordion-trigger"] [data-testid="morning-scene-illustration"]'),
+  ).toBeVisible();
+  await expect(
+    page.locator('[data-testid="morning-accordion-trigger"] [data-testid="evening-scene-illustration"]'),
+  ).toHaveCount(0);
+  await expect(
+    page.locator('[data-testid="evening-accordion-trigger"] [data-testid="evening-scene-illustration"]'),
+  ).toBeVisible();
+  await expect(
+    page.locator('[data-testid="evening-accordion-trigger"] [data-testid="morning-scene-illustration"]'),
+  ).toHaveCount(0);
   await expect(page.getByTestId("morning-prompt-form-variant-toggle")).toHaveCount(0);
   await expect(page.getByTestId("evening-prompt-form-variant-toggle")).toHaveCount(0);
   await expect(page.getByText("Form look")).toHaveCount(0);

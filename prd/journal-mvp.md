@@ -92,6 +92,7 @@ Current layout:
 - one full-width grouped card for the three gratitude lines
 - two writing cards below for `what would make today great` and `daily affirmation`
 - stacked vertically on mobile and two-up on larger screens where it helps
+- the open header includes a sunrise illustration, with a tiny accent-only version on phone widths
 
 ### “To relax” list
 
@@ -127,6 +128,7 @@ Current layout:
 - one full-width grouped card for the three good things
 - one wide reflection card below for `how could today have gone better?`
 - stacked cleanly on mobile without a separate comparison mode
+- the open header includes a moon-and-stars night illustration, with a tiny accent-only version on phone widths
 
 ### Prompt accordion behavior
 

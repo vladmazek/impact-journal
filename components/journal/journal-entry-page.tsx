@@ -35,7 +35,9 @@ import { getMediaUrl } from "@/lib/media-url";
 import { type CalendarNavigationMonth } from "@/lib/journal/calendar-navigation";
 import { DateNavigation } from "@/components/journal/date-navigation";
 import { EntrySection } from "@/components/journal/entry-section";
+import { EveningSceneIllustration } from "@/components/journal/evening-scene-illustration";
 import { ImagePreviewModal } from "@/components/journal/image-preview-modal";
+import { MorningSceneIllustration } from "@/components/journal/morning-scene-illustration";
 import { MoodPicker } from "@/components/journal/mood-picker";
 import { RelaxList } from "@/components/journal/relax-list";
 import {
@@ -88,6 +90,7 @@ type PromptAccordionSectionProps = {
   children: ReactNode;
   description: string;
   eyebrow: string;
+  headerAside?: ReactNode;
   isOpen: boolean;
   onToggle: (section: PromptSection) => void;
   section: PromptSection;
@@ -468,6 +471,7 @@ function PromptAccordionSection({
   children,
   description,
   eyebrow,
+  headerAside,
   isOpen,
   onToggle,
   section,
@@ -489,18 +493,26 @@ function PromptAccordionSection({
         type="button"
       >
         <div className="flex items-start justify-between gap-4">
-          <div className="min-w-0 space-y-2.5">
-            <p className="text-[11px] uppercase tracking-[0.24em] text-primary/70">{eyebrow}</p>
-            <div className="space-y-2.5">
-              <h2 className="font-serif text-2xl font-medium tracking-tight text-foreground sm:text-[2.25rem] sm:leading-tight">
-                {title}
-              </h2>
-              {isOpen ? (
-                <p className="max-w-2xl text-base leading-7 text-muted-foreground sm:text-[1.05rem]">
-                  {description}
-                </p>
-              ) : null}
+          <div className="flex min-w-0 flex-1 items-start gap-3 sm:gap-6">
+            <div className="min-w-0 flex-1 space-y-2.5">
+              <p className="text-[11px] uppercase tracking-[0.24em] text-primary/70">{eyebrow}</p>
+              <div className="space-y-2.5">
+                <h2 className="font-serif text-2xl font-medium tracking-tight text-foreground sm:text-[2.25rem] sm:leading-tight">
+                  {title}
+                </h2>
+                {isOpen ? (
+                  <p className="max-w-2xl text-base leading-7 text-muted-foreground sm:text-[1.05rem]">
+                    {description}
+                  </p>
+                ) : null}
+              </div>
             </div>
+
+            {isOpen && headerAside ? (
+              <div className="shrink-0 self-start pt-0.5" data-testid={`${section}-header-aside`}>
+                {headerAside}
+              </div>
+            ) : null}
           </div>
           <span
             className={cn(
@@ -1113,6 +1125,7 @@ export function JournalEntryPage({
           <PromptAccordionSection
             description="A few small lines to orient the day before it gets noisy."
             eyebrow="Morning"
+            headerAside={<MorningSceneIllustration />}
             isOpen={promptSectionVisibility.morning}
             onToggle={togglePromptSection}
             section="morning"
@@ -1229,6 +1242,7 @@ export function JournalEntryPage({
           <PromptAccordionSection
             description="End with what went well and one calm note for tomorrow."
             eyebrow="Evening"
+            headerAside={<EveningSceneIllustration />}
             isOpen={promptSectionVisibility.evening}
             onToggle={togglePromptSection}
             section="evening"

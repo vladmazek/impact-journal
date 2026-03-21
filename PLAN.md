@@ -21,7 +21,7 @@ Completed MVP areas:
 
 - `/setup`, `/login`, `/today`, `/entry/[date]`, `/week/[year]/[week]`, and `/settings`
 - `/api/media/[...path]` for private media and `/api/location-search` for authenticated location autocomplete
-- a quote-only daily hero, permanent journal-style morning/evening prompt cards, collapsible mood picker behavior, and a minimal sidebar for mood, images, and tags
+- a quote-only daily hero, permanent journal-style morning/evening prompt cards with ambient sunrise/night header illustrations, collapsible mood picker behavior, and a minimal sidebar for mood, images, and tags
 - timezone-aware day and week resolution driven by the saved owner settings
 - reusable tag behavior with normalized slugs, duplicate collapse, and `isManual` preservation
 - mirrored-source production deployment currently hosted at `impact.vlad.net`
@@ -43,6 +43,7 @@ For local interactive development, avoid `pnpm build` inside the shared dev cont
 
 These are intentionally deferred:
 
+- richer day/night theme cues with minimalist sun-up / moon-up visual backgrounds that signal time of day without distracting from writing, using stronger non-pastel color treatment
 - local weather surfaced from the saved home location
 - export
 - reminders
