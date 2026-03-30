@@ -1,7 +1,6 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
-import { LockKeyhole, ShieldCheck } from "lucide-react";
 
+import backgroundImage from "@/background.png";
 import { LoginForm } from "@/components/auth/login-form";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { hasExistingUser } from "@/lib/auth/bootstrap";
@@ -22,66 +21,44 @@ export default async function LoginPage() {
   }
 
   return (
-    <main className="mx-auto flex min-h-screen w-full max-w-6xl items-center px-4 py-12 sm:px-6">
-      <div className="grid w-full gap-8 lg:grid-cols-[minmax(0,1.05fr)_460px]">
-        <section className="rounded-[36px] border border-border/60 bg-card/80 p-8 shadow-journal backdrop-blur sm:p-10">
-          <p className="text-[11px] uppercase tracking-[0.28em] text-primary/70">
-            Private by design
-          </p>
-          <h1 className="mt-4 max-w-xl font-serif text-5xl leading-tight text-balance text-foreground">
-            Return to the page you left open.
-          </h1>
-          <p className="mt-5 max-w-2xl text-base leading-7 text-muted-foreground">
-            Impact Journal is a single-owner space. Sign in to reach today&apos;s page,
-            your stored images, and the journal shell that will hold the full daily flow.
-          </p>
+    <div className="relative min-h-screen overflow-hidden">
+      <div
+        aria-hidden="true"
+        className="absolute inset-0 bg-cover bg-center bg-no-repeat"
+        style={{
+          backgroundImage: `url(${backgroundImage.src})`,
+          backgroundPosition: "center center",
+        }}
+      />
 
-          <div className="mt-10 grid gap-4 sm:grid-cols-2">
-            <Card className="bg-background/80 shadow-none">
-              <CardHeader>
-                <ShieldCheck className="h-5 w-5 text-primary" />
-                <CardTitle className="text-2xl">Mounted media</CardTitle>
-                <CardDescription>
-                  Images stay on your host volume, not inside the repo or a cloud bucket.
-                </CardDescription>
-              </CardHeader>
-            </Card>
-            <Card className="bg-background/80 shadow-none">
-              <CardHeader>
-                <LockKeyhole className="h-5 w-5 text-primary" />
-                <CardTitle className="text-2xl">Signed session</CardTitle>
-                <CardDescription>
-                  Credentials auth and HTTP-only cookies protect every journal route.
-                </CardDescription>
-              </CardHeader>
-            </Card>
-          </div>
+      <div
+        aria-hidden="true"
+        className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.26),transparent_34%),linear-gradient(180deg,rgba(246,242,233,0.26),rgba(246,242,233,0.08)_30%,rgba(238,232,219,0.42)_100%)] dark:bg-[radial-gradient(circle_at_center,rgba(15,23,42,0.16),transparent_36%),linear-gradient(180deg,rgba(6,11,24,0.32),rgba(6,11,24,0.1)_28%,rgba(6,11,24,0.6)_100%)]"
+      />
+      <div
+        aria-hidden="true"
+        className="absolute inset-0 bg-[linear-gradient(90deg,rgba(250,248,243,0.16),rgba(250,248,243,0.04)_18%,transparent_42%,transparent_60%,rgba(250,248,243,0.08)_82%,rgba(250,248,243,0.18)_100%)] dark:bg-[linear-gradient(90deg,rgba(2,6,23,0.44),rgba(2,6,23,0.12)_18%,transparent_42%,transparent_60%,rgba(2,6,23,0.18)_82%,rgba(2,6,23,0.46)_100%)]"
+      />
 
-          <p className="mt-8 text-sm text-muted-foreground">
-            Setting up a brand-new journal instead?{" "}
-            <Link className="text-primary underline-offset-4 hover:underline" href="/setup">
-              Go to first-run setup
-            </Link>
-            .
-          </p>
-        </section>
-
-        <Card className="overflow-hidden">
-          <CardHeader className="bg-background/60 pb-5">
+      <main className="relative z-10 mx-auto flex min-h-screen w-full items-center justify-center px-4 py-12 sm:px-6">
+        <Card className="w-full max-w-[640px] overflow-hidden !rounded-[36px] !border-white/35 !bg-[linear-gradient(145deg,rgba(255,250,244,0.76),rgba(255,250,244,0.54))] shadow-[0_38px_100px_rgba(15,23,42,0.18)] backdrop-blur-2xl dark:!border-white/10 dark:!bg-[linear-gradient(145deg,rgba(6,11,24,0.8),rgba(6,11,24,0.56))] dark:shadow-[0_40px_110px_rgba(2,6,23,0.46)]">
+          <CardHeader className="gap-4 p-8 pb-4 sm:p-10 sm:pb-5">
             <p className="text-[11px] uppercase tracking-[0.24em] text-primary/70">
               Login
             </p>
-            <CardTitle>Open your private workspace</CardTitle>
-            <CardDescription>
+            <CardTitle className="text-4xl leading-tight text-balance sm:text-5xl">
+              Open your private workspace
+            </CardTitle>
+            <CardDescription className="max-w-xl text-base leading-8 sm:text-lg">
               Use the same email and password chosen when the journal was first initialized.
             </CardDescription>
           </CardHeader>
-          <CardContent className="pt-6">
+
+          <CardContent className="p-8 pt-3 sm:px-10 sm:pb-10">
             <LoginForm />
           </CardContent>
         </Card>
-      </div>
-    </main>
+      </main>
+    </div>
   );
 }
-
