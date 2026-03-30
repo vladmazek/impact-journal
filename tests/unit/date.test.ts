@@ -4,6 +4,7 @@ import {
   getDateSlugsForIsoWeek,
   getIsoWeekPartsFromDateSlug,
   resolveDailyPromptSection,
+  resolveMorningSceneVariant,
   resolveCurrentIsoWeek,
   resolveHourInTimeZone,
   resolveTodayDateSlug,
@@ -61,6 +62,24 @@ describe("resolveDailyPromptSection", () => {
     expect(
       resolveDailyPromptSection(new Date("2026-03-15T21:30:00.000Z"), "America/Phoenix"),
     ).toBe("evening");
+  });
+});
+
+describe("resolveMorningSceneVariant", () => {
+  it("uses the default morning artwork before the early window", () => {
+    expect(resolveMorningSceneVariant(new Date("2026-03-30T05:44:00"))).toBe("default");
+  });
+
+  it("switches to the early-morning artwork at 5:45 AM", () => {
+    expect(resolveMorningSceneVariant(new Date("2026-03-30T05:45:00"))).toBe("early");
+  });
+
+  it("keeps the early-morning artwork through 7:30 AM", () => {
+    expect(resolveMorningSceneVariant(new Date("2026-03-30T07:30:00"))).toBe("early");
+  });
+
+  it("returns to the default morning artwork after 7:30 AM", () => {
+    expect(resolveMorningSceneVariant(new Date("2026-03-30T07:31:00"))).toBe("default");
   });
 });
 

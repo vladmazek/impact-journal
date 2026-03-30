@@ -7,6 +7,10 @@ import { z } from "zod";
 import { type SettingsActionState } from "@/lib/actions/settings-state";
 import { hashPassword } from "@/lib/auth/password";
 import { getSessionUser, refreshUserSessionFromDatabase } from "@/lib/auth/session";
+import {
+  journalPromptConfigSchema,
+  serializeJournalPromptConfig,
+} from "@/lib/journal/journal-prompts";
 import { parseLocationSelection } from "@/lib/location-search";
 import { removeStoredFile, saveUploadedImage } from "@/lib/media";
 import { prisma } from "@/lib/prisma";
@@ -40,6 +44,53 @@ async function requireSettingsSession() {
   }
 
   return session;
+}
+
+function buildJournalPromptConfigFromFormData(formData: FormData) {
+  return {
+    evening: {
+      goodThings: {
+        description: formData.get("evening.goodThings.description"),
+        placeholders: [
+          formData.get("evening.goodThings.placeholders.0"),
+          formData.get("evening.goodThings.placeholders.1"),
+          formData.get("evening.goodThings.placeholders.2"),
+        ],
+        title: formData.get("evening.goodThings.title"),
+      },
+      improveTomorrow: {
+        placeholder: formData.get("evening.improveTomorrow.placeholder"),
+        title: formData.get("evening.improveTomorrow.title"),
+      },
+      section: {
+        description: formData.get("evening.section.description"),
+        title: formData.get("evening.section.title"),
+      },
+    },
+    morning: {
+      affirmation: {
+        placeholder: formData.get("morning.affirmation.placeholder"),
+        title: formData.get("morning.affirmation.title"),
+      },
+      gratitudes: {
+        description: formData.get("morning.gratitudes.description"),
+        placeholders: [
+          formData.get("morning.gratitudes.placeholders.0"),
+          formData.get("morning.gratitudes.placeholders.1"),
+          formData.get("morning.gratitudes.placeholders.2"),
+        ],
+        title: formData.get("morning.gratitudes.title"),
+      },
+      section: {
+        description: formData.get("morning.section.description"),
+        title: formData.get("morning.section.title"),
+      },
+      todayGreat: {
+        placeholder: formData.get("morning.todayGreat.placeholder"),
+        title: formData.get("morning.todayGreat.title"),
+      },
+    },
+  };
 }
 
 export async function updateProfileAction(
@@ -208,6 +259,105 @@ export async function updateProfileAction(
   return {
     error: null,
     success: "Account settings updated.",
+  };
+}
+
+export async function updateJournalPromptsAction(
+  _previousState: SettingsActionState,
+  formData: FormData,
+): Promise<SettingsActionState> {
+  void _previousState;
+  const session = await requireSettingsSession();
+
+  if (!session) {
+    return {
+      error: "Your session expired. Sign in again to update settings.",
+      success: null,
+    };
+  }
+
+  const parsedValues = journalPromptConfigSchema.safeParse(
+    buildJournalPromptConfigFromFormData(formData),
+  );
+
+  if (!parsedValues.success) {
+    return {
+      error:
+        parsedValues.error.issues[0]?.message ?? "Unable to update journal prompts right now.",
+      success: null,
+    };
+  }
+
+  const user = await prisma.user.findUnique({
+    where: { id: session.userId },
+    select: { id: true },
+  });
+
+  if (!user) {
+    return {
+      error: "That account could not be found anymore. Sign in again to continue.",
+      success: null,
+    };
+  }
+
+  await prisma.user.update({
+    where: { id: session.userId },
+    data: {
+      journalPromptConfig: serializeJournalPromptConfig(parsedValues.data),
+    },
+  });
+
+  revalidatePath("/settings");
+  revalidatePath("/today");
+  revalidatePath("/entry/[date]", "page");
+
+  return {
+    error: null,
+    success: "Journal prompts updated.",
+  };
+}
+
+export async function resetJournalPromptsAction(
+  _previousState: SettingsActionState,
+  _formData: FormData,
+): Promise<SettingsActionState> {
+  void _previousState;
+  void _formData;
+  const session = await requireSettingsSession();
+
+  if (!session) {
+    return {
+      error: "Your session expired. Sign in again to update settings.",
+      success: null,
+    };
+  }
+
+  const user = await prisma.user.findUnique({
+    where: { id: session.userId },
+    select: { id: true },
+  });
+
+  if (!user) {
+    return {
+      error: "That account could not be found anymore. Sign in again to continue.",
+      success: null,
+    };
+  }
+
+  await prisma.user.update({
+    where: { id: session.userId },
+    data: {
+      journalPromptConfig: null,
+    },
+  });
+
+  revalidatePath("/settings");
+  revalidatePath("/today");
+  revalidatePath("/entry/[date]", "page");
+
+  return {
+    error: null,
+    success: "Journal prompts reset to the default copy.",
   };
 }
 

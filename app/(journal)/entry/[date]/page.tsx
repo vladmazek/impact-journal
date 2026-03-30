@@ -9,6 +9,7 @@ import {
 } from "@/lib/date";
 import { loadCalendarNavigationMonthForUser } from "@/lib/journal/calendar-navigation";
 import { loadDailyEntryForUser } from "@/lib/journal/daily-entry";
+import { parseStoredJournalPromptConfig } from "@/lib/journal/journal-prompts";
 import { pickRandomMotivationalQuote } from "@/lib/motivational-quotes";
 import { prisma } from "@/lib/prisma";
 
@@ -28,7 +29,10 @@ export default async function EntryPage({ params }: EntryPageProps) {
     loadDailyEntryForUser(session.userId, params.date),
     prisma.user.findUnique({
       where: { id: session.userId },
-      select: { timezone: true },
+      select: {
+        journalPromptConfig: true,
+        timezone: true,
+      },
     }),
   ]);
 
@@ -49,6 +53,7 @@ export default async function EntryPage({ params }: EntryPageProps) {
       entry={entry}
       motivationalQuote={motivationalQuote}
       preferredPromptSection={preferredPromptSection}
+      promptConfig={parseStoredJournalPromptConfig(user?.journalPromptConfig)}
       todayDate={todayDate}
       userTimeZone={timezone}
     />

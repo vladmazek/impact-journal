@@ -14,7 +14,7 @@ Completed MVP areas:
 4. Guided daily journaling UX with mood, quote-first header, time-aware card-based prompt accordions, relax list, and focused writing modal
 5. Image attachments plus lightweight tags with manual pinning and parsed hashtags from structured and free-form entry text
 6. Weekly reflection with ISO-week routing, life-area ratings, long-form prompts, and day links
-7. Settings, password change, theme, avatar, and home-location-driven timezone behavior
+7. Settings, password change, theme, avatar, live journal-prompt customization, and home-location-driven timezone behavior
 8. Production deployment for `impact.vlad.net` plus a documented sync-based live update flow
 
 ## What the app now includes
@@ -22,6 +22,7 @@ Completed MVP areas:
 - `/setup`, `/login`, `/today`, `/entry/[date]`, `/week/[year]/[week]`, and `/settings`
 - `/api/media/[...path]` for private media and `/api/location-search` for authenticated location autocomplete
 - a quote-only daily hero, permanent journal-style morning/evening prompt cards with ambient sunrise/night header illustrations, collapsible mood picker behavior, and a minimal sidebar for mood, images, and tags
+- owner-editable morning/evening prompt titles, descriptions, and placeholders that apply globally across daily pages
 - timezone-aware day and week resolution driven by the saved owner settings
 - reusable tag behavior with normalized slugs, duplicate collapse, and `isManual` preservation
 - mirrored-source production deployment currently hosted at `impact.vlad.net`

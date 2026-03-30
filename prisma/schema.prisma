@@ -32,6 +32,7 @@ model User {
   locationLongitude      Float?
   timezone               String             @default("America/New_York")
   themePreference        ThemePreference    @default(SYSTEM)
+  journalPromptConfig    String?            @db.LongText
   avatarOriginalFilename String?
   avatarStoredFilename   String?
   avatarRelativePath     String?

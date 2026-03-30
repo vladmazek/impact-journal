@@ -29,6 +29,7 @@ Current fields:
 - `locationLongitude` (optional)
 - `timezone` (derived from saved home location or app default)
 - `themePreference`
+- `journalPromptConfig` (`LONGTEXT`, nullable serialized JSON for morning/evening prompt copy)
 - avatar metadata fields
 - `createdAt`
 - `updatedAt`
@@ -38,6 +39,7 @@ Notes:
 - MVP still assumes one real account
 - `timezone` remains the internal source of truth for day and week logic
 - location data is stored structurally so future weather can be added cleanly
+- `journalPromptConfig` stores customizable morning/evening prompt titles, descriptions, and placeholders; `null` means use the shipped defaults
 
 ### DailyEntry
 

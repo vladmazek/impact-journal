@@ -77,7 +77,7 @@ This product does not need a separate API service for MVP. The monolith keeps:
 
 ### Settings
 
-- display name, email, home location, derived timezone, avatar, and theme updates
+- display name, email, home location, derived timezone, avatar, theme, and daily prompt copy updates
 - authenticated location autocomplete backed by the app's `/api/location-search` route
 - password change
 - owner-only account surface with no multi-user admin layer
@@ -107,6 +107,7 @@ Key tables:
 Notable behavior:
 
 - `User` stores structured home location fields plus the derived timezone used across daily and weekly routing
+- `User.journalPromptConfig` stores the single owner's editable morning/evening prompt copy as serialized JSON, with app defaults used when the field is `null`
 - `DailyEntryTag.isManual` preserves picker-selected tags independently from hashtag-derived tags
 - parsed tags are built from morning fields, evening fields, and the free-form writing space
 - relax items do not generate parsed tags

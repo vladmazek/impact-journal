@@ -1,9 +1,10 @@
 import { access } from "node:fs/promises";
 import path from "node:path";
 
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 
 import { dateSlugToUtcDate, resolveDailyPromptSection } from "@/lib/date";
+import { defaultJournalPromptConfig } from "@/lib/journal/journal-prompts";
 import { env } from "@/lib/env";
 import { getMotivationalQuotes } from "@/lib/motivational-quotes";
 import { prisma } from "@/lib/prisma";
@@ -25,6 +26,37 @@ test.beforeEach(async () => {
 test.afterAll(async () => {
   await prisma.$disconnect();
 });
+
+async function mockBrowserTime(page: Page, now: string) {
+  await page.addInitScript((mockedNow: string) => {
+    const fixedTime = new Date(mockedNow).valueOf();
+    const NativeDate = Date;
+
+    class MockDate extends NativeDate {
+      constructor(...args: unknown[]) {
+        if (args.length === 0) {
+          super(fixedTime);
+          return;
+        }
+
+        super(...(args as ConstructorParameters<DateConstructor>));
+      }
+
+      static now() {
+        return fixedTime;
+      }
+    }
+
+    MockDate.parse = NativeDate.parse;
+    MockDate.UTC = NativeDate.UTC;
+
+    globalThis.Date = MockDate as DateConstructor;
+  }, now);
+}
+
+function parseStoredPromptConfig(value: string | null | undefined) {
+  return value ? JSON.parse(value) : null;
+}
 
 test("relax list keeps focus while typing and saves only after blur", async ({ page }) => {
   const { user } = await loginAsSeededOwner(page);
@@ -233,6 +265,115 @@ test("today's entry opens the time-appropriate prompt section and still supports
   }
 });
 
+test("theme switching clears a stale session instead of throwing a runtime error", async ({
+  page,
+}) => {
+  await loginAsSeededOwner(page);
+  await resetTestState();
+
+  await page.getByRole("button", { name: "Change theme" }).click();
+  await page.getByRole("menuitem", { name: /Dark/ }).click();
+
+  await expect(page).toHaveURL(/\/(login|setup)$/);
+  await expect(page.getByText("Unhandled Runtime Error")).toHaveCount(0);
+});
+
+test("settings can customize journal prompt copy and reset it back to defaults", async ({
+  page,
+}) => {
+  const { user } = await loginAsSeededOwner(page);
+
+  await page.goto("/settings");
+
+  await expect(page.getByTestId("journal-prompts-form")).toBeVisible();
+  await expect(page.getByTestId("journal-prompts-morning-gratitudes-title")).toHaveValue(
+    defaultJournalPromptConfig.morning.gratitudes.title,
+  );
+  await expect(page.getByTestId("journal-prompts-evening-good-things-title")).toHaveValue(
+    defaultJournalPromptConfig.evening.goodThings.title,
+  );
+
+  await page
+    .getByTestId("journal-prompts-morning-section-title")
+    .fill("Begin the page gently");
+  await page
+    .getByTestId("journal-prompts-morning-gratitudes-description")
+    .fill("Three small notices before the day accelerates.");
+  await page
+    .getByTestId("journal-prompts-morning-gratitudes-placeholder-0")
+    .fill("A breath, a light, or a first good sign");
+  await page
+    .getByTestId("journal-prompts-evening-good-things-title")
+    .fill("Three soft landings");
+  await page
+    .getByTestId("journal-prompts-evening-improve-tomorrow-title")
+    .fill("What would help tomorrow feel steadier?");
+  await page.getByRole("button", { name: "Save journal prompts" }).click();
+
+  await expect
+    .poll(async () => {
+      const storedConfig = parseStoredPromptConfig((await findUserById(user.id))?.journalPromptConfig);
+      return storedConfig
+        ? {
+            eveningGoodThingsTitle: storedConfig.evening.goodThings.title,
+            eveningImproveTitle: storedConfig.evening.improveTomorrow.title,
+            morningGratitudesDescription: storedConfig.morning.gratitudes.description,
+            morningGratitudesPlaceholder0: storedConfig.morning.gratitudes.placeholders[0],
+            morningSectionTitle: storedConfig.morning.section.title,
+          }
+        : null;
+    })
+    .toEqual({
+      eveningGoodThingsTitle: "Three soft landings",
+      eveningImproveTitle: "What would help tomorrow feel steadier?",
+      morningGratitudesDescription: "Three small notices before the day accelerates.",
+      morningGratitudesPlaceholder0: "A breath, a light, or a first good sign",
+      morningSectionTitle: "Begin the page gently",
+    });
+
+  await page.reload();
+  await expect(page.getByTestId("journal-prompts-morning-section-title")).toHaveValue(
+    "Begin the page gently",
+  );
+  await expect(page.getByTestId("journal-prompts-evening-good-things-title")).toHaveValue(
+    "Three soft landings",
+  );
+
+  await page.goto("/entry/2026-03-14");
+  await expect(page.getByText("Begin the page gently")).toBeVisible();
+  await expect(page.getByText("Three small notices before the day accelerates.")).toBeVisible();
+  await expect(page.getByText("Three soft landings")).toBeVisible();
+  await expect(
+    page.locator("p").filter({ hasText: "What would help tomorrow feel steadier?" }),
+  ).toBeVisible();
+  await expect(page.getByTestId("prompt-field-gratitude1")).toHaveAttribute(
+    "placeholder",
+    "A breath, a light, or a first good sign",
+  );
+
+  await page.goto("/today");
+  await expect(page.getByText("Begin the page gently")).toBeVisible();
+
+  await page.goto("/settings");
+  await page.getByRole("button", { name: "Reset all prompts" }).click();
+
+  await page.reload();
+  await expect(page.getByTestId("journal-prompts-morning-section-title")).toHaveValue(
+    defaultJournalPromptConfig.morning.section.title,
+  );
+  await expect(page.getByTestId("journal-prompts-evening-good-things-title")).toHaveValue(
+    defaultJournalPromptConfig.evening.goodThings.title,
+  );
+
+  await page.goto("/entry/2026-03-14");
+  await expect(page.getByText(defaultJournalPromptConfig.morning.section.title)).toBeVisible();
+  await expect(page.getByText(defaultJournalPromptConfig.evening.goodThings.title)).toBeVisible();
+  await expect(page.getByTestId("prompt-field-gratitude1")).toHaveAttribute(
+    "placeholder",
+    defaultJournalPromptConfig.morning.gratitudes.placeholders[0],
+  );
+});
+
 test("prompt forms use the permanent cards layout and keep values after reload", async ({
   page,
 }) => {
@@ -242,15 +383,37 @@ test("prompt forms use the permanent cards layout and keep values after reload",
 
   await expect(page.getByTestId("morning-prompt-form")).toBeVisible();
   await expect(page.getByTestId("evening-prompt-form")).toBeVisible();
+  await expect(page.getByTestId("morning-header-background")).toBeVisible();
+  await expect(page.getByTestId("evening-header-background")).toBeVisible();
   await expect(
     page.locator('[data-testid="morning-accordion-trigger"] [data-testid="morning-scene-illustration"]'),
   ).toBeVisible();
+  await expect(page.getByTestId("morning-scene-illustration")).toHaveAttribute(
+    "data-scene-image",
+    "morning",
+  );
+  await expect(page.getByTestId("morning-scene-illustration")).toHaveAttribute(
+    "data-scene-variant",
+    "default",
+  );
+  await expect(page.getByTestId("morning-scene-illustration")).toHaveAttribute(
+    "data-scene-expanded",
+    "true",
+  );
   await expect(
     page.locator('[data-testid="morning-accordion-trigger"] [data-testid="evening-scene-illustration"]'),
   ).toHaveCount(0);
   await expect(
     page.locator('[data-testid="evening-accordion-trigger"] [data-testid="evening-scene-illustration"]'),
   ).toBeVisible();
+  await expect(page.getByTestId("evening-scene-illustration")).toHaveAttribute(
+    "data-scene-image",
+    "night",
+  );
+  await expect(page.getByTestId("evening-scene-illustration")).toHaveAttribute(
+    "data-scene-expanded",
+    "true",
+  );
   await expect(
     page.locator('[data-testid="evening-accordion-trigger"] [data-testid="morning-scene-illustration"]'),
   ).toHaveCount(0);
@@ -260,12 +423,16 @@ test("prompt forms use the permanent cards layout and keep values after reload",
   await expect(page.getByText(/^Today$/)).toHaveCount(0);
   await expect(page.getByText(/^Keep close$/i)).toHaveCount(0);
 
-  await page.getByLabel("Gratitude one").fill("Light through the window");
-  await page.getByLabel("Good thing one").fill("Dinner together felt easy");
-  await page.getByLabel("How could today have gone better?").click();
+  await page.getByTestId("prompt-field-gratitude1").fill("Light through the window");
+  await page.getByTestId("prompt-field-eveningGood1").fill("Dinner together felt easy");
+  await page.getByTestId("prompt-field-improveTomorrow").click();
 
-  await expect(page.getByLabel("Gratitude one")).toHaveValue("Light through the window");
-  await expect(page.getByLabel("Good thing one")).toHaveValue("Dinner together felt easy");
+  await expect(page.getByTestId("prompt-field-gratitude1")).toHaveValue(
+    "Light through the window",
+  );
+  await expect(page.getByTestId("prompt-field-eveningGood1")).toHaveValue(
+    "Dinner together felt easy",
+  );
 
   await expect
     .poll(async () => {
@@ -284,8 +451,99 @@ test("prompt forms use the permanent cards layout and keep values after reload",
 
   await expect(page.getByTestId("morning-prompt-form")).toBeVisible();
   await expect(page.getByTestId("evening-prompt-form")).toBeVisible();
-  await expect(page.getByLabel("Gratitude one")).toHaveValue("Light through the window");
-  await expect(page.getByLabel("Good thing one")).toHaveValue("Dinner together felt easy");
+  await expect(page.getByTestId("prompt-field-gratitude1")).toHaveValue(
+    "Light through the window",
+  );
+  await expect(page.getByTestId("prompt-field-eveningGood1")).toHaveValue(
+    "Dinner together felt easy",
+  );
+
+  await page.getByTestId("morning-accordion-trigger").click();
+  await expect(page.getByTestId("morning-header-background")).toBeVisible();
+  await expect(page.getByTestId("morning-accordion-content")).toBeHidden();
+  await expect(page.getByTestId("morning-scene-illustration")).toHaveAttribute(
+    "data-scene-expanded",
+    "false",
+  );
+
+  await page.getByTestId("morning-accordion-trigger").click();
+  await expect(page.getByTestId("morning-header-background")).toBeVisible();
+  await expect(page.getByTestId("morning-accordion-content")).toBeVisible();
+  await expect(page.getByTestId("morning-scene-illustration")).toHaveAttribute(
+    "data-scene-expanded",
+    "true",
+  );
+});
+
+test.describe("journal header artwork", () => {
+  test.use({ timezoneId: "America/New_York" });
+
+  test("today's morning section uses the early artwork during the browser-time window", async ({
+    page,
+  }) => {
+    await mockBrowserTime(page, "2026-03-30T09:50:00.000Z");
+    await loginAsSeededOwner(page);
+
+    const todaySlug = expectedTodayForTimezone("America/New_York");
+    await page.goto(`/entry/${todaySlug}`);
+
+    await expect(page.getByTestId("morning-scene-illustration")).toHaveAttribute(
+      "data-scene-image",
+      "earlymorning",
+    );
+    await expect(page.getByTestId("morning-scene-illustration")).toHaveAttribute(
+      "data-scene-variant",
+      "early",
+    );
+    await expect(page.getByTestId("morning-scene-illustration")).toHaveAttribute(
+      "data-scene-expanded",
+      "true",
+    );
+  });
+
+  test("today's morning section uses the standard artwork outside the browser-time window", async ({
+    page,
+  }) => {
+    await mockBrowserTime(page, "2026-03-30T11:31:00.000Z");
+    await loginAsSeededOwner(page);
+
+    const todaySlug = expectedTodayForTimezone("America/New_York");
+    await page.goto(`/entry/${todaySlug}`);
+
+    await expect(page.getByTestId("morning-scene-illustration")).toHaveAttribute(
+      "data-scene-image",
+      "morning",
+    );
+    await expect(page.getByTestId("morning-scene-illustration")).toHaveAttribute(
+      "data-scene-variant",
+      "default",
+    );
+    await expect(page.getByTestId("morning-scene-illustration")).toHaveAttribute(
+      "data-scene-expanded",
+      "true",
+    );
+  });
+
+  test("past entries keep the standard morning artwork even during the early browser-time window", async ({
+    page,
+  }) => {
+    await mockBrowserTime(page, "2026-03-30T09:50:00.000Z");
+    await loginAsSeededOwner(page);
+    await page.goto("/entry/2026-03-14");
+
+    await expect(page.getByTestId("morning-scene-illustration")).toHaveAttribute(
+      "data-scene-image",
+      "morning",
+    );
+    await expect(page.getByTestId("morning-scene-illustration")).toHaveAttribute(
+      "data-scene-variant",
+      "default",
+    );
+    await expect(page.getByTestId("morning-scene-illustration")).toHaveAttribute(
+      "data-scene-expanded",
+      "true",
+    );
+  });
 });
 
 test("the writing modal stays open while paused and preserves text across close and reopen", async ({
@@ -403,7 +661,7 @@ test("tags can be added from the picker and hashtags without creating duplicate 
     await page.getByTestId("morning-accordion-trigger").click();
   }
 
-  await page.getByLabel("What would make today great?").fill("A slower #deep_work morning.");
+  await page.getByTestId("prompt-field-todayGreat").fill("A slower #deep_work morning.");
   await expect(page.getByTestId("selected-tag-deep-work")).toHaveText("#deep-work");
   await page.getByTestId("open-tag-input").click();
   await page.getByTestId("tag-input").click();
@@ -429,8 +687,10 @@ test("topbar navigation flushes pending text changes before leaving the day page
   const { user } = await loginAsSeededOwner(page);
 
   await page.goto("/entry/2026-03-19");
-  await page.getByLabel("Gratitude one").click();
-  await page.getByLabel("Gratitude one").pressSequentially("Saved before settings navigation");
+  await page.getByTestId("prompt-field-gratitude1").click();
+  await page
+    .getByTestId("prompt-field-gratitude1")
+    .pressSequentially("Saved before settings navigation");
   await page.getByRole("link", { name: "Open journal settings" }).click();
 
   await expect(page).toHaveURL(/\/settings$/);

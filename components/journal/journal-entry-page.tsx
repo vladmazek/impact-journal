@@ -30,6 +30,8 @@ import { buildNormalizedTag, extractTagsFromText, formatTagLabel } from "@/lib/j
 import {
   formatLongDateFromSlug,
   resolveDailyPromptSection,
+  resolveMorningSceneVariant,
+  type MorningSceneVariant,
 } from "@/lib/date";
 import { getMediaUrl } from "@/lib/media-url";
 import { type CalendarNavigationMonth } from "@/lib/journal/calendar-navigation";
@@ -51,6 +53,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { type MotivationalQuote } from "@/lib/motivational-quotes";
+import { type JournalPromptConfig } from "@/lib/journal/journal-prompts";
 import { cn } from "@/lib/utils";
 
 type JournalEntryPageProps = {
@@ -58,6 +61,7 @@ type JournalEntryPageProps = {
   entry: DailyEntryRecord;
   motivationalQuote: MotivationalQuote;
   preferredPromptSection: PromptSection;
+  promptConfig: JournalPromptConfig;
   todayDate: string;
   userTimeZone: string;
 };
@@ -90,7 +94,7 @@ type PromptAccordionSectionProps = {
   children: ReactNode;
   description: string;
   eyebrow: string;
-  headerAside?: ReactNode;
+  headerBackground?: ReactNode;
   isOpen: boolean;
   onToggle: (section: PromptSection) => void;
   section: PromptSection;
@@ -101,7 +105,6 @@ type PromptFieldConfig = {
   field: TextFieldName;
   id: string;
   label: string;
-  placeholder: string;
 };
 
 type PromptTextareaFieldProps = {
@@ -132,19 +135,16 @@ const MORNING_SHORT_FIELDS: PromptFieldConfig[] = [
     field: "gratitude1",
     id: "gratitude1",
     label: "Gratitude one",
-    placeholder: "Something quietly good",
   },
   {
     field: "gratitude2",
     id: "gratitude2",
     label: "Gratitude two",
-    placeholder: "Another thing worth noticing",
   },
   {
     field: "gratitude3",
     id: "gratitude3",
     label: "Gratitude three",
-    placeholder: "A person, place, or moment",
   },
 ];
 
@@ -153,19 +153,16 @@ const EVENING_SHORT_FIELDS: PromptFieldConfig[] = [
     field: "eveningGood1",
     id: "eveningGood1",
     label: "Good thing one",
-    placeholder: "A win, kindness, or bright spot",
   },
   {
     field: "eveningGood2",
     id: "eveningGood2",
     label: "Good thing two",
-    placeholder: "Another thing worth holding onto",
   },
   {
     field: "eveningGood3",
     id: "eveningGood3",
     label: "Good thing three",
-    placeholder: "A quiet detail that mattered",
   },
 ];
 
@@ -186,6 +183,7 @@ function CardPromptLineField({
       <Input
         aria-label={label}
         className="h-auto border-0 bg-transparent px-0 py-0 text-[15px] leading-7 shadow-none placeholder:text-muted-foreground/85 focus-visible:ring-0"
+        data-testid={`prompt-field-${id}`}
         id={id}
         onBlur={onBlur}
         onChange={(event) => onChange(event.currentTarget.value)}
@@ -227,6 +225,7 @@ function CardPromptTextareaField({
             "border-0 bg-transparent px-0 py-0 text-[15px] leading-7 shadow-none placeholder:text-muted-foreground/80 focus-visible:ring-0",
             hasEyebrow ? "min-h-[122px]" : "min-h-[148px]",
           )}
+          data-testid={`prompt-field-${id}`}
           id={id}
           onBlur={onBlur}
           onChange={(event) => onChange(event.currentTarget.value)}
@@ -471,7 +470,7 @@ function PromptAccordionSection({
   children,
   description,
   eyebrow,
-  headerAside,
+  headerBackground,
   isOpen,
   onToggle,
   section,
@@ -487,43 +486,53 @@ function PromptAccordionSection({
       <button
         aria-controls={contentId}
         aria-expanded={isOpen}
-        className="w-full px-6 py-5 text-left transition hover:bg-accent/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-inset sm:px-8 sm:py-6"
+        className="group relative isolate w-full overflow-hidden text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-inset"
         data-testid={`${section}-accordion-trigger`}
         onClick={() => onToggle(section)}
         type="button"
       >
-        <div className="flex items-start justify-between gap-4">
-          <div className="flex min-w-0 flex-1 items-start gap-3 sm:gap-6">
-            <div className="min-w-0 flex-1 space-y-2.5">
-              <p className="text-[11px] uppercase tracking-[0.24em] text-primary/70">{eyebrow}</p>
-              <div className="space-y-2.5">
-                <h2 className="font-serif text-2xl font-medium tracking-tight text-foreground sm:text-[2.25rem] sm:leading-tight">
+        {headerBackground ? (
+          <div className="absolute inset-0" data-testid={`${section}-header-background`}>
+            {headerBackground}
+          </div>
+        ) : null}
+        <div className="absolute inset-0 bg-white/0 transition group-hover:bg-white/[0.04] dark:group-hover:bg-white/[0.03]" />
+        <div
+          className={cn(
+            "relative px-6 py-5 transition-[min-height,padding] duration-500 ease-out sm:px-8 sm:py-7",
+            isOpen ? "min-h-[220px] sm:min-h-[280px] sm:py-8" : "min-h-[168px] sm:min-h-[208px]",
+          )}
+        >
+          <div className="flex items-start justify-between gap-4">
+            <div className="min-w-0 max-w-[32rem] pr-4 sm:max-w-[36rem] sm:pr-10">
+              <p className="text-[11px] uppercase tracking-[0.24em] text-primary/80 dark:text-primary/85">
+                {eyebrow}
+              </p>
+              <div className="mt-3 space-y-3 sm:mt-4">
+                <h2 className="max-w-[15ch] font-serif text-2xl font-medium tracking-tight text-foreground dark:text-white sm:max-w-[13ch] sm:text-[2.6rem] sm:leading-[1.04]">
                   {title}
                 </h2>
                 {isOpen ? (
-                  <p className="max-w-2xl text-base leading-7 text-muted-foreground sm:text-[1.05rem]">
+                  <p className="max-w-[24rem] text-base leading-7 text-foreground/78 dark:text-white/82 sm:max-w-[28rem] sm:text-[1.05rem]">
                     {description}
                   </p>
                 ) : null}
               </div>
             </div>
 
-            {isOpen && headerAside ? (
-              <div className="shrink-0 self-start pt-0.5" data-testid={`${section}-header-aside`}>
-                {headerAside}
-              </div>
-            ) : null}
+            <span
+              className={cn(
+                "mt-1 inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-border/60 bg-background/70 text-muted-foreground backdrop-blur-md transition dark:border-white/10 dark:bg-background/30 dark:text-white/80",
+                isOpen
+                  ? "border-primary/35 text-primary dark:border-primary/35 dark:text-primary"
+                  : "group-hover:border-primary/25 group-hover:text-foreground dark:group-hover:text-white",
+              )}
+            >
+              <ChevronDown
+                className={cn("h-5 w-5 transition-transform", isOpen ? "rotate-180" : "rotate-0")}
+              />
+            </span>
           </div>
-          <span
-            className={cn(
-              "mt-1 inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-border/60 bg-background/80 text-muted-foreground transition",
-              isOpen ? "border-primary/30 text-primary" : "hover:border-primary/25",
-            )}
-          >
-            <ChevronDown
-              className={cn("h-5 w-5 transition-transform", isOpen ? "rotate-180" : "rotate-0")}
-            />
-          </span>
         </div>
       </button>
 
@@ -547,6 +556,7 @@ export function JournalEntryPage({
   entry,
   motivationalQuote,
   preferredPromptSection,
+  promptConfig,
   todayDate,
   userTimeZone,
 }: JournalEntryPageProps) {
@@ -567,6 +577,8 @@ export function JournalEntryPage({
   const [isWritingOpen, setIsWritingOpen] = useState(false);
   const [isUploadingImages, setIsUploadingImages] = useState(false);
   const [isMoodSectionVisible, setIsMoodSectionVisible] = useState(() => !entry.moodValue);
+  const [morningSceneVariant, setMorningSceneVariant] =
+    useState<MorningSceneVariant>("default");
   const [promptSectionVisibility, setPromptSectionVisibility] =
     useState<PromptSectionVisibility>(() =>
       buildPromptSectionVisibility({
@@ -648,21 +660,27 @@ export function JournalEntryPage({
 
   useEffect(() => {
     if (!isToday) {
+      setMorningSceneVariant("default");
       return;
     }
 
-    const syncPromptSectionWithCurrentTime = () => {
+    const syncTodayTemporalUi = () => {
       const nextPromptSection = resolveDailyPromptSection(new Date(), userTimeZone);
+      const nextMorningSceneVariant = resolveMorningSceneVariant(new Date());
 
       if (nextPromptSection !== lastObservedPromptSectionRef.current) {
         lastObservedPromptSectionRef.current = nextPromptSection;
         setPromptSectionVisibility(buildPromptSectionVisibilityForToday(nextPromptSection));
       }
+
+      setMorningSceneVariant((currentVariant) =>
+        currentVariant === nextMorningSceneVariant ? currentVariant : nextMorningSceneVariant,
+      );
     };
 
-    syncPromptSectionWithCurrentTime();
+    syncTodayTemporalUi();
 
-    const intervalId = window.setInterval(syncPromptSectionWithCurrentTime, 60_000);
+    const intervalId = window.setInterval(syncTodayTemporalUi, SAVE_GUARD_INTERVAL_MS);
 
     return () => {
       window.clearInterval(intervalId);
@@ -1123,27 +1141,32 @@ export function JournalEntryPage({
           </div>
 
           <PromptAccordionSection
-            description="A few small lines to orient the day before it gets noisy."
+            description={promptConfig.morning.section.description}
             eyebrow="Morning"
-            headerAside={<MorningSceneIllustration />}
+            headerBackground={
+              <MorningSceneIllustration
+                expanded={promptSectionVisibility.morning}
+                variant={morningSceneVariant}
+              />
+            }
             isOpen={promptSectionVisibility.morning}
             onToggle={togglePromptSection}
             section="morning"
-            title="Open the page gently"
+            title={promptConfig.morning.section.title}
           >
             <div className="space-y-5">
               <div className="space-y-5" data-testid="morning-prompt-form">
                 <div className="rounded-[30px] border border-border/60 bg-background/55 p-4 sm:p-5">
                   <div className="mb-4 space-y-1">
                     <p className="text-[11px] uppercase tracking-[0.22em] text-primary/70">
-                      Three gratitudes
+                      {promptConfig.morning.gratitudes.title}
                     </p>
                     <p className="text-sm text-muted-foreground">
-                      Three quick lines, nothing more.
+                      {promptConfig.morning.gratitudes.description}
                     </p>
                   </div>
                   <div className="overflow-hidden rounded-[24px] border border-border/50 bg-background/85 divide-y divide-border/50">
-                    {MORNING_SHORT_FIELDS.map((field) => (
+                    {MORNING_SHORT_FIELDS.map((field, index) => (
                       <CardPromptLineField
                         id={field.id}
                         key={field.id}
@@ -1151,7 +1174,7 @@ export function JournalEntryPage({
                         onBlur={commitFieldChange}
                         onChange={(value) => setFieldValue(field.field, value)}
                         onFocus={() => setActiveTextField(field.field)}
-                        placeholder={field.placeholder}
+                        placeholder={promptConfig.morning.gratitudes.placeholders[index]}
                         value={draft[field.field]}
                       />
                     ))}
@@ -1161,20 +1184,20 @@ export function JournalEntryPage({
                 <div className="grid gap-4 lg:grid-cols-2">
                   <CardPromptTextareaField
                     id="todayGreat"
-                    label="What would make today great?"
+                    label={promptConfig.morning.todayGreat.title}
                     onBlur={commitFieldChange}
                     onChange={(value) => setFieldValue("todayGreat", value)}
                     onFocus={() => setActiveTextField("todayGreat")}
-                    placeholder="A simple win, a feeling, or a small intention."
+                    placeholder={promptConfig.morning.todayGreat.placeholder}
                     value={draft.todayGreat}
                   />
                   <CardPromptTextareaField
                     id="affirmation"
-                    label="Daily affirmation"
+                    label={promptConfig.morning.affirmation.title}
                     onBlur={commitFieldChange}
                     onChange={(value) => setFieldValue("affirmation", value)}
                     onFocus={() => setActiveTextField("affirmation")}
-                    placeholder="A line you want to keep close today."
+                    placeholder={promptConfig.morning.affirmation.placeholder}
                     value={draft.affirmation}
                   />
                 </div>
@@ -1240,27 +1263,27 @@ export function JournalEntryPage({
           </EntrySection>
 
           <PromptAccordionSection
-            description="End with what went well and one calm note for tomorrow."
+            description={promptConfig.evening.section.description}
             eyebrow="Evening"
-            headerAside={<EveningSceneIllustration />}
+            headerBackground={<EveningSceneIllustration expanded={promptSectionVisibility.evening} />}
             isOpen={promptSectionVisibility.evening}
             onToggle={togglePromptSection}
             section="evening"
-            title="Close the day"
+            title={promptConfig.evening.section.title}
           >
             <div className="space-y-5">
               <div className="space-y-5" data-testid="evening-prompt-form">
                 <div className="rounded-[30px] border border-border/60 bg-background/55 p-4 sm:p-5">
                   <div className="mb-4 space-y-1">
                     <p className="text-[11px] uppercase tracking-[0.22em] text-primary/70">
-                      Three good things
+                      {promptConfig.evening.goodThings.title}
                     </p>
                     <p className="text-sm text-muted-foreground">
-                      Three quick details before the day closes.
+                      {promptConfig.evening.goodThings.description}
                     </p>
                   </div>
                   <div className="overflow-hidden rounded-[24px] border border-border/50 bg-background/85 divide-y divide-border/50">
-                    {EVENING_SHORT_FIELDS.map((field) => (
+                    {EVENING_SHORT_FIELDS.map((field, index) => (
                       <CardPromptLineField
                         id={field.id}
                         key={field.id}
@@ -1268,7 +1291,7 @@ export function JournalEntryPage({
                         onBlur={commitFieldChange}
                         onChange={(value) => setFieldValue(field.field, value)}
                         onFocus={() => setActiveTextField(field.field)}
-                        placeholder={field.placeholder}
+                        placeholder={promptConfig.evening.goodThings.placeholders[index]}
                         value={draft[field.field]}
                       />
                     ))}
@@ -1277,11 +1300,11 @@ export function JournalEntryPage({
 
                 <CardPromptTextareaField
                   id="improveTomorrow"
-                  label="How could today have gone better?"
+                  label={promptConfig.evening.improveTomorrow.title}
                   onBlur={commitFieldChange}
                   onChange={(value) => setFieldValue("improveTomorrow", value)}
                   onFocus={() => setActiveTextField("improveTomorrow")}
-                  placeholder="Keep it kind and specific. What would help tomorrow feel steadier?"
+                  placeholder={promptConfig.evening.improveTomorrow.placeholder}
                   value={draft.improveTomorrow}
                 />
               </div>

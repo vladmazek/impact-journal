@@ -69,5 +69,110 @@
   .text-balance {
     text-wrap: balance;
   }
-}
 
+  .prompt-header-scene-image-mask {
+    -webkit-mask-image: linear-gradient(
+      to bottom,
+      rgba(0, 0, 0, 1) 0%,
+      rgba(0, 0, 0, 0.98) 58%,
+      rgba(0, 0, 0, 0.78) 78%,
+      transparent 100%
+    );
+    mask-image: linear-gradient(
+      to bottom,
+      rgba(0, 0, 0, 1) 0%,
+      rgba(0, 0, 0, 0.98) 58%,
+      rgba(0, 0, 0, 0.78) 78%,
+      transparent 100%
+    );
+  }
+
+  .prompt-header-scene-image-mask-expanded {
+    -webkit-mask-image: linear-gradient(
+      to bottom,
+      rgba(0, 0, 0, 1) 0%,
+      rgba(0, 0, 0, 0.98) 68%,
+      rgba(0, 0, 0, 0.82) 86%,
+      transparent 100%
+    );
+    mask-image: linear-gradient(
+      to bottom,
+      rgba(0, 0, 0, 1) 0%,
+      rgba(0, 0, 0, 0.98) 68%,
+      rgba(0, 0, 0, 0.82) 86%,
+      transparent 100%
+    );
+  }
+
+  .prompt-header-scene-overlay {
+    background:
+      linear-gradient(
+        180deg,
+        hsl(var(--card) / 0.02) 0%,
+        hsl(var(--card) / 0.08) 40%,
+        hsl(var(--card) / 0.94) 100%
+      ),
+      linear-gradient(
+        90deg,
+        hsl(var(--card)) 0%,
+        hsl(var(--card) / 0.96) 18%,
+        hsl(var(--card) / 0.74) 34%,
+        hsl(var(--card) / 0.3) 52%,
+        transparent 72%
+      );
+  }
+
+  .prompt-header-scene-overlay-expanded {
+    background:
+      linear-gradient(
+        180deg,
+        hsl(var(--card) / 0.01) 0%,
+        hsl(var(--card) / 0.06) 50%,
+        hsl(var(--card) / 0.84) 100%
+      ),
+      linear-gradient(
+        90deg,
+        hsl(var(--card)) 0%,
+        hsl(var(--card) / 0.96) 18%,
+        hsl(var(--card) / 0.72) 34%,
+        hsl(var(--card) / 0.24) 54%,
+        transparent 76%
+      );
+  }
+
+  .dark .prompt-header-scene-overlay {
+    background:
+      linear-gradient(
+        180deg,
+        hsl(var(--background) / 0.26) 0%,
+        hsl(var(--background) / 0.58) 46%,
+        hsl(var(--background)) 100%
+      ),
+      linear-gradient(
+        90deg,
+        hsl(var(--background)) 0%,
+        hsl(var(--background) / 0.96) 20%,
+        hsl(var(--background) / 0.7) 38%,
+        hsl(var(--background) / 0.28) 60%,
+        transparent 80%
+      );
+  }
+
+  .dark .prompt-header-scene-overlay-expanded {
+    background:
+      linear-gradient(
+        180deg,
+        hsl(var(--background) / 0.18) 0%,
+        hsl(var(--background) / 0.44) 50%,
+        hsl(var(--background)) 100%
+      ),
+      linear-gradient(
+        90deg,
+        hsl(var(--background)) 0%,
+        hsl(var(--background) / 0.95) 20%,
+        hsl(var(--background) / 0.66) 38%,
+        hsl(var(--background) / 0.22) 60%,
+        transparent 82%
+      );
+  }
+}

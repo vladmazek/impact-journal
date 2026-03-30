@@ -107,7 +107,8 @@ After deploy:
 6. confirm the right sidebar shows mood, images, and tags in the current minimal layout
 7. upload an image and confirm it survives a container restart
 8. open a weekly reflection and confirm save/load behavior
-9. open settings and confirm home location, theme, avatar, and password updates persist
+9. open settings and confirm journal prompt presets, home location, theme, avatar, and password updates persist
+10. open a daily entry and confirm the saved prompt-copy changes render there immediately
 
 ## Persistent storage expectations
 

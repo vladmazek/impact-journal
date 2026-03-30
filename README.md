@@ -14,7 +14,7 @@ The current app is implemented, deployed, and in active polish:
 - image uploads backed by mounted host storage with normalized filenames and DB metadata
 - lightweight tags with manual pinning plus `#tag` parsing from morning, evening, and free-form writing fields
 - weekly reflection with ISO-week routing, overall mood, life-area ratings, long-form prompts, and day links
-- settings for owner profile, home location autocomplete, derived timezone, avatar, theme, email, and password updates
+- settings for owner profile, live daily prompt preset copy, home location autocomplete, derived timezone, avatar, theme, email, and password updates
 - Docker-first local development plus a production deployment currently serving `impact.vlad.net`
 
 ## Product boundaries

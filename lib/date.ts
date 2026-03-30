@@ -218,6 +218,18 @@ export function resolveDailyPromptSection(date: Date, timeZone: string) {
   return resolveHourInTimeZone(date, timeZone) < 12 ? "morning" : "evening";
 }
 
+export type MorningSceneVariant = "default" | "early";
+
+export function resolveMorningSceneVariant(date: Date): MorningSceneVariant {
+  const minutesSinceMidnight = date.getHours() * 60 + date.getMinutes();
+  const earlyMorningStart = 5 * 60 + 45;
+  const earlyMorningEnd = 7 * 60 + 30;
+
+  return minutesSinceMidnight >= earlyMorningStart && minutesSinceMidnight <= earlyMorningEnd
+    ? "early"
+    : "default";
+}
+
 export function toDateSlugInTimeZone(date: Date, timeZone: string) {
   return resolveTodayDateSlug(date, timeZone);
 }

@@ -230,12 +230,24 @@ export async function updateThemePreferenceAction(theme: ThemeMode) {
     return;
   }
 
-  await prisma.user.update({
-    where: { id: session.userId },
-    data: {
-      themePreference: toThemePreference(theme),
-    },
-  });
+  try {
+    await prisma.user.update({
+      where: { id: session.userId },
+      data: {
+        themePreference: toThemePreference(theme),
+      },
+    });
+  } catch (error) {
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === "P2025"
+    ) {
+      await clearUserSession();
+      redirect("/login");
+    }
+
+    throw error;
+  }
 
   await updateSessionThemePreference(theme);
   revalidatePath("/", "layout");

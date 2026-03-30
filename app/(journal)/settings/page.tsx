@@ -1,8 +1,10 @@
+import { JournalPromptsForm } from "@/components/settings/journal-prompts-form";
 import { PasswordSettingsForm } from "@/components/settings/password-settings-form";
 import { ProfileSettingsForm } from "@/components/settings/profile-settings-form";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { requireUserSession } from "@/lib/auth/session";
+import { parseStoredJournalPromptConfig } from "@/lib/journal/journal-prompts";
 import { prisma } from "@/lib/prisma";
 import { toThemeMode } from "@/lib/theme";
 
@@ -14,6 +16,7 @@ export default async function SettingsPage() {
       avatarRelativePath: true,
       displayName: true,
       email: true,
+      journalPromptConfig: true,
       locationCity: true,
       locationCountry: true,
       locationLabel: true,
@@ -42,8 +45,8 @@ export default async function SettingsPage() {
                 Keep the private journal grounded.
               </h1>
               <p className="max-w-2xl text-base leading-7 text-muted-foreground sm:text-lg">
-                Update the single-owner account, keep the home location accurate, and change the
-                password without turning the app into an admin dashboard.
+                Tune the journal voice, update the single-owner account, keep the home location
+                accurate, and change the password without turning the app into an admin dashboard.
               </p>
             </div>
           </div>
@@ -84,6 +87,25 @@ export default async function SettingsPage() {
           </CardHeader>
           <CardContent className="pt-6">
             <PasswordSettingsForm />
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="border-b border-border/60">
+            <p className="text-[11px] uppercase tracking-[0.24em] text-primary/70">
+              Journal prompts
+            </p>
+            <CardTitle>Daily prompt presets</CardTitle>
+            <CardDescription>
+              Customize the live copy for the fixed morning and evening journal prompts while
+              keeping the same calm writing layout.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="pt-6">
+            <JournalPromptsForm
+              key={user.journalPromptConfig ?? "default-journal-prompts"}
+              promptConfig={parseStoredJournalPromptConfig(user.journalPromptConfig)}
+            />
           </CardContent>
         </Card>
       </div>
