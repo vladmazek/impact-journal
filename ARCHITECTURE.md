@@ -50,6 +50,7 @@ This product does not need a separate API service for MVP. The monolith keeps:
 
 - single-owner setup gate
 - email/password login
+- setup remains a first-run route, while login uses a single centered card over a full-page landscape background
 - Argon2 password hashing
 - signed HTTP-only cookie session
 - session refresh after profile and theme changes

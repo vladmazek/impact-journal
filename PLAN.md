@@ -21,6 +21,7 @@ Completed MVP areas:
 
 - `/setup`, `/login`, `/today`, `/entry/[date]`, `/week/[year]/[week]`, and `/settings`
 - `/api/media/[...path]` for private media and `/api/location-search` for authenticated location autocomplete
+- a full-page auth background treatment with a single centered login card, while setup remains first-run only
 - a quote-only daily hero, permanent journal-style morning/evening prompt cards with ambient sunrise/night header illustrations, collapsible mood picker behavior, and a minimal sidebar for mood, images, and tags
 - owner-editable morning/evening prompt titles, descriptions, and placeholders that apply globally across daily pages
 - timezone-aware day and week resolution driven by the saved owner settings

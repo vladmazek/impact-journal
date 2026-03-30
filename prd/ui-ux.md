@@ -54,6 +54,14 @@ Future theme polish candidate:
 
 ## Layout model
 
+### Auth surfaces
+
+- auth should feel calm and premium without turning into a marketing page
+- login should use one strong centered surface over an environmental background instead of a split two-panel layout
+- setup can stay more instructional because it is first-run only
+- background imagery should create place and atmosphere, but the form card must remain the clear focal point
+- auth cards should use translucent, blurred surfaces rather than solid blocks when contrast stays strong
+
 ### Top bar
 
 Keep it small and quiet.

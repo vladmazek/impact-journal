@@ -6,7 +6,7 @@ Impact Journal is a private single-user journal built with Next.js, TypeScript, 
 
 The current app is implemented, deployed, and in active polish:
 
-- owner setup, login, logout, hashed password auth, and secure HTTP-only sessions
+- owner setup, login, logout, hashed password auth, and secure HTTP-only sessions with a full-page landscape auth shell and a simplified single-card login screen
 - protected daily journaling with autosave, mood selection, relax list, guided prompts, and a focused long-form writing modal
 - a quote-first daily header with one random motivational quote per page load
 - time-aware morning/evening prompt accordions on today's page, with permanent card-based prompt layouts, ambient morning/night header illustrations, and both prompt sections expanded on older entries
